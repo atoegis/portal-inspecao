@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Portal de Inspeção</title>
+<meta name="description" content="Fotos das inspeções de campo no mapa, com filtros, relatórios e exportação.">
+<meta name="theme-color" content="#15171A">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="lib/leaflet/leaflet.css">
+<link rel="stylesheet" href="css/portal.css">
+</head>
+<body>
+
+<!-- ============================================================ entrada -->
+<section id="tela-entrada" class="entrada" hidden>
+  <div class="entrada-caixa">
+    <div class="marca marca-grande">
+      <img src="icons/icon-192.png" alt="" width="44" height="44">
+      <div>
+        <strong>Portal de Inspeção</strong>
+        <span>Registros fotográficos de campo</span>
+      </div>
+    </div>
+    <form id="form-entrada" autocomplete="off">
+      <label for="campo-codigo">Código de acesso</label>
+      <input id="campo-codigo" inputmode="numeric" autocomplete="one-time-code" placeholder="6 dígitos" required>
+      <p class="ajuda">Use o código do portal ou o código da equipe. Os dois estão na aba Config da planilha.</p>
+      <p id="erro-entrada" class="erro" role="alert" hidden></p>
+      <button type="submit" class="btn btn-primario btn-largo" id="btn-entrar">Entrar</button>
+    </form>
+  </div>
+  <svg class="entrada-trilho" viewBox="0 0 1200 60" preserveAspectRatio="none" aria-hidden="true">
+    <line x1="0" y1="30" x2="1200" y2="30" />
+  </svg>
+</section>
+
+<!-- ============================================================ portal -->
+<div id="tela-portal" class="portal" hidden>
+  <header class="topo">
+    <div class="marca">
+      <img src="icons/icon-192.png" alt="" width="30" height="30">
+      <strong>Portal de Inspeção</strong>
+    </div>
+    <nav class="abas" aria-label="Seções">
+      <a href="#mapa" class="aba" data-aba="mapa">Mapa</a>
+      <a href="#relatorios" class="aba" data-aba="relatorios">Relatórios</a>
+    </nav>
+    <div class="topo-dir">
+      <span id="estado-dados" class="estado-dados" aria-live="polite"></span>
+      <button class="btn btn-topo" id="btn-atualizar" title="Buscar fotos novas">
+        <svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>
+        <span>Atualizar</span>
+      </button>
+      <button class="btn btn-topo" id="btn-sair" title="Sair deste computador">Sair</button>
+    </div>
+  </header>
+
+  <!-- ------------------------------------------------ aba mapa -->
+  <main id="aba-mapa" class="aba-mapa">
+    <aside class="painel" id="painel">
+      <div class="painel-abas-movel" role="tablist">
+        <button data-movel="filtros" class="ativo">Filtros</button>
+        <button data-movel="lista">Lista</button>
+        <button data-movel="mapa">Mapa</button>
+      </div>
+
+      <section class="filtros" id="filtros" aria-label="Filtros">
+        <div class="busca">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+          <input id="f-texto" type="search" placeholder="Buscar descrição, estaca, inspetor…" aria-label="Buscar">
+        </div>
+
+        <div class="grupo">
+          <div class="grupo-tit">Período</div>
+          <div class="chips" id="f-periodo-rapido">
+            <button data-dias="0">Hoje</button>
+            <button data-dias="6">7 dias</button>
+            <button data-dias="29">30 dias</button>
+            <button data-dias="">Tudo</button>
+          </div>
+          <div class="linha2">
+            <label><span>De</span><input type="date" id="f-de"></label>
+            <label><span>Até</span><input type="date" id="f-ate"></label>
+          </div>
+        </div>
+
+        <div class="grupo">
+          <label class="grupo-tit" for="f-relatorio">Relatório</label>
+          <select id="f-relatorio"></select>
+        </div>
+
+        <div class="grupo">
+          <div class="grupo-tit">Categoria</div>
+          <div class="chips chips-cat" id="f-categorias"></div>
+        </div>
+
+        <div class="grupo">
+          <div class="grupo-tit">Faixa de domínio</div>
+          <div class="segmentado" id="f-situacao">
+            <button data-v="">Todas</button>
+            <button data-v="dentro">Dentro</button>
+            <button data-v="fora">Fora</button>
+          </div>
+        </div>
+
+        <details class="mais" id="mais-filtros">
+          <summary>Mais filtros <span id="mais-cont"></span></summary>
+          <div class="grade-filtros">
+            <label><span>Tipo de relatório</span><select id="f-tipo"></select></label>
+            <label><span>Inspetor</span><select id="f-inspetor"></select></label>
+            <label><span>Eixo</span><select id="f-eixo"></select></label>
+            <label><span>Segmento</span><select id="f-segmento"></select></label>
+            <label><span>Cidade</span><select id="f-cidade"></select></label>
+            <label><span>Pacote</span><select id="f-pacote"></select></label>
+            <label><span>Estaca inicial</span><input id="f-est-de" placeholder="ex.: 12+300"></label>
+            <label><span>Estaca final</span><input id="f-est-ate" placeholder="ex.: 15+000"></label>
+            <label class="largo"><span>Elemento do trecho</span><input id="f-elemento" placeholder="Bueiro, PN, Corte 18, Ponte…"></label>
+          </div>
+        </details>
+
+        <button class="btn-link" id="btn-limpar" hidden>Limpar filtros</button>
+      </section>
+
+      <section class="resultados" id="resultados" aria-label="Fotos encontradas">
+        <div class="resultados-topo">
+          <strong id="cont-fotos">0 fotos</strong>
+          <select id="ordem" aria-label="Ordenar">
+            <option value="data-desc">Mais recentes</option>
+            <option value="data-asc">Mais antigas</option>
+            <option value="estaca">Por estaca</option>
+          </select>
+          <div class="menu" id="menu-exportar">
+            <button class="btn btn-sec btn-peq" aria-haspopup="true" aria-expanded="false">Exportar</button>
+            <div class="menu-itens" hidden>
+              <button data-exp="relatorio">Relatório fotográfico (PDF)</button>
+              <button data-exp="csv">Planilha (CSV)</button>
+              <button data-exp="kml">Google Earth (KML)</button>
+            </div>
+          </div>
+        </div>
+        <ol class="lista" id="lista"></ol>
+        <div class="vazio" id="lista-vazia" hidden></div>
+      </section>
+    </aside>
+
+    <div class="area-mapa">
+      <div id="mapa" class="mapa" aria-label="Mapa das fotos"></div>
+      <div class="mapa-controles">
+        <div class="segmentado segmentado-escuro" id="cor-por" title="Cor dos pontos">
+          <button data-v="categoria">Categoria</button>
+          <button data-v="situacao">Faixa</button>
+        </div>
+        <button class="btn btn-mapa" id="btn-enquadrar" title="Enquadrar as fotos filtradas">Enquadrar fotos</button>
+      </div>
+      <div class="legenda-mapa" id="legenda-mapa"></div>
+
+      <section class="regua" id="regua" aria-label="Fotos ao longo do trecho">
+        <div class="regua-topo">
+          <select id="regua-eixo" aria-label="Eixo da régua"></select>
+          <span class="regua-dica" id="regua-dica">Arraste na régua para filtrar um trecho</span>
+          <button class="btn-link btn-link-claro" id="regua-limpar" hidden>Mostrar todo o eixo</button>
+        </div>
+        <svg id="regua-svg" class="regua-svg" role="img" aria-label="Quantidade de fotos por quilômetro"></svg>
+      </section>
+
+      <!-- detalhe da foto -->
+      <aside class="detalhe" id="detalhe" hidden aria-label="Detalhe da foto">
+        <div class="detalhe-topo">
+          <div>
+            <div class="detalhe-est" id="d-estaca"></div>
+            <div class="detalhe-sub" id="d-sub"></div>
+          </div>
+          <div class="detalhe-nav">
+            <button class="btn-ico" id="d-ant" title="Foto anterior (←)"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
+            <span id="d-pos" class="detalhe-pos"></span>
+            <button class="btn-ico" id="d-prox" title="Próxima foto (→)"><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+            <button class="btn-ico" id="d-fechar" title="Fechar (Esc)"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+          </div>
+        </div>
+        <div class="detalhe-corpo">
+          <figure class="foto" id="d-foto">
+            <img id="d-img" alt="">
+            <div class="foto-carregando" id="d-carregando">Carregando foto…</div>
+          </figure>
+          <div class="segmentado" id="d-versao" hidden>
+            <button data-v="com">Com legenda</button>
+            <button data-v="sem">Sem legenda</button>
+          </div>
+          <div class="aviso-fora" id="d-fora" hidden></div>
+          <p class="detalhe-desc" id="d-desc"></p>
+          <dl class="campos" id="d-campos"></dl>
+          <div class="detalhe-acoes">
+            <a class="btn btn-sec" id="d-drive" target="_blank" rel="noopener">Abrir no Drive</a>
+            <button class="btn btn-sec" id="d-baixar">Baixar foto</button>
+            <button class="btn btn-sec" id="d-zoom">Aproximar no mapa</button>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <!-- ------------------------------------------------ aba relatórios -->
+  <main id="aba-relatorios" class="aba-relatorios" hidden>
+    <div class="rel-cab">
+      <div class="numeros" id="numeros"></div>
+      <div class="rel-filtros">
+        <div class="busca">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+          <input id="r-texto" type="search" placeholder="Buscar objeto, inspetor, ID…" aria-label="Buscar relatório">
+        </div>
+        <select id="r-tipo" aria-label="Tipo"></select>
+        <select id="r-status" aria-label="Situação"></select>
+      </div>
+    </div>
+    <div class="tabela-rolagem">
+      <table class="tabela" id="tabela-rel">
+        <thead>
+          <tr>
+            <th data-ord="inicio" class="ord">Início</th>
+            <th data-ord="tipo" class="ord">Tipo</th>
+            <th data-ord="objeto" class="ord">Objeto de avaliação</th>
+            <th data-ord="inspetor" class="ord">Inspetor</th>
+            <th data-ord="trecho" class="ord">Trecho</th>
+            <th data-ord="nfotos" class="ord num">Fotos</th>
+            <th data-ord="nfora" class="ord num">Fora da faixa</th>
+            <th data-ord="status" class="ord">Situação</th>
+            <th><span class="sr">Ações</span></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div class="vazio" id="rel-vazio" hidden></div>
+    </div>
+  </main>
+</div>
+
+<!-- ============================================================ carregamento / avisos -->
+<div class="carregando-tela" id="carregando" hidden>
+  <div class="carregando-caixa">
+    <div class="barra"><span id="carregando-barra"></span></div>
+    <p id="carregando-texto">Carregando…</p>
+    <button class="btn btn-sec btn-peq" id="carregando-cancelar" hidden>Cancelar</button>
+  </div>
+</div>
+<div class="aviso" id="aviso" role="status" hidden></div>
+
+<!-- relatório fotográfico (só aparece na impressão) -->
+<div id="impressao" class="impressao" aria-hidden="true"></div>
+
+<script src="lib/leaflet/leaflet.js"></script>
+<script src="js/config.js"></script>
+<script type="module" src="js/portal.js"></script>
+</body>
+</html>
