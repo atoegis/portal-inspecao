@@ -10,6 +10,7 @@ import { criarMapa } from './mapa.js';
 import { criarRegua } from './regua.js';
 import { gerarRelatorioFotografico } from './impressao.js';
 import { exportarCSV, exportarKML } from './exportar.js';
+import { criarVideos } from './videos.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -39,6 +40,7 @@ let filtros = filtrosVazios();
 
 let mapa = null;
 let regua = null;
+let videos = null;
 
 // ================================================================ início
 iniciar();
@@ -192,6 +194,7 @@ async function atualizar(silencioso) {
     aplicarFiltrosNaTela();
     recalcular({ enquadrar: false });
     renderRelatorios();
+    if (videos) videos.atualizar();
     mostrarEstadoDados(false);
     const novas = estado.dados.registros.length - antes;
     if (!silencioso || novas > 0) avisar(novas > 0 ? `${plural(novas, 'foto nova', 'fotos novas')}.` : 'Nenhuma foto nova.');
@@ -250,6 +253,7 @@ function usarEixos(resp) {
 
 // ================================================================ interface
 function montarInterface() {
+  videos = criarVideos({ dados: () => estado.dados, avisar });
   mapa = criarMapa($('#mapa'), {
     aoSelecionar: (id) => selecionar(id, { centralizar: false }),
   });
@@ -439,7 +443,9 @@ function irPara(aba) {
   $$('.aba').forEach((a) => (a.dataset.aba === aba ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
   $('#aba-mapa').hidden = aba !== 'mapa';
   $('#aba-relatorios').hidden = aba !== 'relatorios';
+  $('#aba-videos').hidden = aba !== 'videos';
   if (aba === 'mapa') setTimeout(() => { mapa.redimensionar(); atualizarRegua(); }, 30);
+  if (aba === 'videos' && videos) videos.entrar();
   escreverHash();
 }
 
@@ -668,7 +674,7 @@ function lerHash(deEvento) {
     filtros.estAte = q.has('est_ate') ? Number(q.get('est_ate')) : null;
     if (q.get('foto')) estado.selecionadoInicial = q.get('foto');
   }
-  irPara(aba === 'relatorios' ? 'relatorios' : 'mapa');
+  irPara(aba === 'relatorios' || aba === 'videos' ? aba : 'mapa');
   if (deEvento && estado.dados) {
     aplicarFiltrosNaTela();
     recalcular({ enquadrar: true });

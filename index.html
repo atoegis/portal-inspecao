@@ -49,6 +49,7 @@
     <nav class="abas" aria-label="Seções">
       <a href="#mapa" class="aba" data-aba="mapa">Mapa</a>
       <a href="#relatorios" class="aba" data-aba="relatorios">Relatórios</a>
+      <a href="#videos" class="aba" data-aba="videos">Vídeos</a>
     </nav>
     <div class="topo-dir">
       <span id="estado-dados" class="estado-dados" aria-live="polite"></span>
@@ -237,6 +238,101 @@
       <div class="vazio" id="rel-vazio" hidden></div>
     </div>
   </main>
+
+  <!-- ------------------------------------------------ aba vídeos -->
+  <main id="aba-videos" class="aba-videos" hidden>
+    <div class="rel-cab">
+      <div class="numeros" id="v-numeros"></div>
+      <div class="rel-filtros">
+        <div class="busca">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+          <input id="v-texto" type="search" placeholder="Buscar descrição, estaca, inspetor…" aria-label="Buscar vídeo">
+        </div>
+        <select id="v-rel" aria-label="Relatório"></select>
+        <button class="btn btn-primario" id="v-carregar">
+          <svg viewBox="0 0 24 24"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 21h14"/></svg>
+          Carregar vídeo
+        </button>
+      </div>
+    </div>
+    <p class="v-estado" id="v-estado" aria-live="polite"></p>
+    <div class="v-grade" id="v-grade"></div>
+    <div class="vazio" id="v-vazio" hidden></div>
+  </main>
+</div>
+
+<!-- ============================================================ assistir vídeo -->
+<div class="modal-fundo" id="dlg-video" hidden>
+  <div class="modal modal-video" role="dialog" aria-modal="true" aria-labelledby="pv-titulo">
+    <div class="modal-topo">
+      <div>
+        <div class="detalhe-est" id="pv-titulo"></div>
+        <div class="detalhe-sub" id="pv-sub"></div>
+      </div>
+      <button class="btn-ico" id="pv-fechar" title="Fechar (Esc)"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="pv-corpo">
+      <div class="pv-esq">
+        <div class="pv-midia" id="pv-midia"></div>
+        <p class="pv-aviso" id="pv-aviso" hidden></p>
+        <div class="pv-agora" id="pv-agora" aria-live="polite"></div>
+        <div class="pv-mapa" id="pv-mapa"></div>
+      </div>
+      <div class="pv-dir">
+        <p class="detalhe-desc" id="pv-desc"></p>
+        <dl class="campos" id="pv-campos"></dl>
+        <div class="detalhe-acoes">
+          <a class="btn btn-sec" id="pv-drive" target="_blank" rel="noopener">Abrir no Drive</a>
+          <button class="btn btn-sec" id="pv-baixar-leg">Baixar legenda (.srt)</button>
+        </div>
+        <div class="pv-linha-tit">Linha do tempo</div>
+        <ol class="pv-linha" id="pv-linha"></ol>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ carregar vídeo -->
+<div class="modal-fundo" id="dlg-carregar" hidden>
+  <div class="modal modal-carga" role="dialog" aria-modal="true" aria-labelledby="up-titulo">
+    <div class="modal-topo">
+      <div>
+        <div class="detalhe-est" id="up-titulo">Carregar vídeo</div>
+        <div class="detalhe-sub">Vídeo gravado no app e o arquivo de legenda (.srt) com o mesmo nome</div>
+      </div>
+      <button class="btn-ico" id="up-fechar" title="Fechar"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <form id="up-form" class="up-corpo" autocomplete="off">
+      <label class="up-zona" id="up-zona" for="up-arquivos">
+        <svg viewBox="0 0 24 24"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 21h14"/></svg>
+        <strong>Escolha ou arraste os arquivos aqui</strong>
+        <span>Selecione o vídeo e a legenda juntos (segure Ctrl para marcar os dois)</span>
+        <input type="file" id="up-arquivos" accept="video/*,.mp4,.webm,.mov,.srt,.vtt" multiple>
+      </label>
+      <ul class="up-escolhidos" id="up-escolhidos"></ul>
+      <div id="up-detalhes" hidden>
+        <dl class="campos up-resumo" id="up-resumo"></dl>
+        <div class="up-grade">
+          <label class="largo"><span>Descrição</span><textarea id="up-desc" rows="2" placeholder="O que o vídeo mostra"></textarea></label>
+          <label><span>Relatório</span><select id="up-rel"></select></label>
+          <label><span>Categoria</span><select id="up-cat"></select></label>
+          <label><span>Inspetor</span><input id="up-insp" placeholder="Nome"></label>
+          <label id="up-codigo-campo" hidden><span>Código da equipe</span><input id="up-codigo" inputmode="numeric" placeholder="6 dígitos"></label>
+        </div>
+      </div>
+      <div class="up-progresso" id="up-progresso" hidden>
+        <div class="up-prog-topo"><strong id="up-pct">0%</strong><span id="up-txt"></span></div>
+        <div class="barra"><span id="up-barra"></span></div>
+        <p class="ajuda">Mantenha esta página aberta até terminar. Se a conexão cair, o envio continua de onde parou.</p>
+      </div>
+      <p class="erro" id="up-erro" role="alert" hidden></p>
+      <div class="up-ok" id="up-ok" hidden></div>
+      <div class="up-acoes">
+        <button type="button" class="btn btn-sec" id="up-cancelar">Cancelar</button>
+        <button type="submit" class="btn btn-primario" id="up-enviar" disabled>Carregar</button>
+      </div>
+    </form>
+  </div>
 </div>
 
 <!-- ============================================================ carregamento / avisos -->
