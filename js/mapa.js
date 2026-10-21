@@ -51,8 +51,8 @@ export function criarMapa(el, { aoSelecionar }) {
     camadaEixo.clearLayers();
     eixos.forEach((e) => {
       if (e.latlngs.length < 2) return;
-      L.polyline(e.latlngs, { color: '#15171A', weight: 7, opacity: 0.7, interactive: false }).addTo(camadaEixo);
-      L.polyline(e.latlngs, { color: '#FFC20E', weight: 3, opacity: 1, interactive: false }).addTo(camadaEixo);
+      L.polyline(e.latlngs, { color: '#17191C', weight: 7, opacity: 0.7, interactive: false }).addTo(camadaEixo);
+      L.polyline(e.latlngs, { color: '#B8F34A', weight: 3, opacity: 1, interactive: false }).addTo(camadaEixo);
       const alvo = L.polyline(e.latlngs, { color: '#000', weight: 18, opacity: 0, className: 'eixo-alvo' }).addTo(camadaEixo);
       alvo.bindTooltip('', { sticky: true, direction: 'top', offset: [0, -6], className: 'dica-eixo' });
       alvo.on('mousemove', (ev) => {

@@ -1,17 +1,17 @@
 /* Portal de Inspeção — mesma identidade do app de campo: grafite, amarelo sinalização, Barlow. */
 :root {
-  --ink: #15171A;
-  --ink2: #1C2026;
-  --ink3: #2A3038;
+  --ink: #17191C;
+  --ink2: #1E2125;
+  --ink3: #2C3036;
   --papel: #FFFFFF;
-  --fundo: #F1F0EB;
-  --campo: #F6F5F1;
+  --fundo: #F5F3EE;
+  --campo: #FAF9F6;
   --linha: #DAD8D0;
   --linha2: #C6C3B8;
   --muted: #5B616B;
-  --muted-escuro: #A9AFB8;
-  --amarelo: #FFC20E;
-  --amarelo-suave: #FFF4CC;
+  --muted-escuro: #9A9FA7;
+  --amarelo: #B8F34A;
+  --amarelo-suave: #EEF9D9;
   --fora: #C2410C;
   --fora-bg: #FFE8D9;
   --ok: #155C2E;
@@ -42,7 +42,7 @@ button svg, .busca svg { width: 18px; height: 18px; fill: none; stroke: currentC
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 38px; padding: 0 14px; border-radius: var(--raio); border: 1.5px solid transparent; font-weight: 600; text-decoration: none; white-space: nowrap; background: none; }
 .btn:disabled { opacity: .45; cursor: default; }
 .btn-primario { background: var(--amarelo); color: var(--ink); border-color: var(--amarelo); }
-.btn-primario:hover { background: #FFCF3D; }
+.btn-primario:hover { background: #C8F76E; }
 .btn-sec { background: var(--papel); border-color: var(--linha2); color: var(--ink); }
 .btn-sec:hover:not(:disabled) { border-color: var(--ink); }
 .btn-peq { height: 32px; padding: 0 10px; font-size: 13px; }
@@ -222,8 +222,8 @@ button svg, .busca svg { width: 18px; height: 18px; fill: none; stroke: currentC
 .r-seg-txt { fill: #E6E8EB; font-family: var(--fc); font-size: 9px; font-weight: 600; text-anchor: middle; pointer-events: none; }
 .r-tick { stroke: #7C848F; }
 .r-km-txt { fill: #B9BFC7; font-family: var(--fc); font-size: 12px; font-weight: 600; }
-.r-sel { fill: rgba(255,194,14,.13); stroke: var(--amarelo); stroke-width: 1.5; pointer-events: none; }
-.r-arrasto { fill: rgba(255,194,14,.22); stroke: var(--amarelo); stroke-dasharray: 3 2; pointer-events: none; }
+.r-sel { fill: rgba(184,243,74,.16); stroke: var(--amarelo); stroke-width: 1.5; pointer-events: none; }
+.r-arrasto { fill: rgba(184,243,74,.26); stroke: var(--amarelo); stroke-dasharray: 3 2; pointer-events: none; }
 .r-marca { fill: #fff; }
 .r-marca-linha { stroke: #fff; stroke-width: 1.5; stroke-dasharray: 2 2; }
 .r-cursor { pointer-events: none; }
@@ -239,7 +239,7 @@ button svg, .busca svg { width: 18px; height: 18px; fill: none; stroke: currentC
 .detalhe-nav { margin-left: auto; display: flex; align-items: center; gap: 4px; }
 .detalhe-pos { font-size: 12px; color: var(--muted); min-width: 52px; text-align: center; font-variant-numeric: tabular-nums; }
 .detalhe-corpo { overflow-y: auto; padding: 0 0 16px; }
-.foto { margin: 0; background: #0E1013; position: relative; aspect-ratio: 4 / 3; display: grid; place-items: center; }
+.foto { margin: 0; background: #17191C; position: relative; aspect-ratio: 4 / 3; display: grid; place-items: center; }
 .foto img { max-width: 100%; max-height: 100%; width: 100%; height: 100%; object-fit: contain; display: block; }
 .foto-carregando-on img { filter: blur(3px); opacity: .7; }
 .foto-carregando { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); background: rgba(21,23,26,.85); color: #fff; font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: 4px; white-space: nowrap; }
@@ -280,7 +280,7 @@ button svg, .busca svg { width: 18px; height: 18px; fill: none; stroke: currentC
 .tabela .acoes { text-align: right; }
 .tabela .acoes .btn + .btn { margin-left: 4px; }
 .status { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: #ECEAE4; white-space: nowrap; }
-.status-aberto { background: var(--amarelo-suave); color: #7A5A00; }
+.status-aberto { background: var(--amarelo-suave); color: #3E5A0A; }
 .status-encerrado { background: var(--ok-bg); color: var(--ok); }
 
 /* ---------------------------------------------------------------- avisos */
@@ -363,7 +363,7 @@ button svg, .busca svg { width: 18px; height: 18px; fill: none; stroke: currentC
   .impressao * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 .imp-pin-wrap { background: none; border: 0; }
-.imp-pin { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: #15171A; color: #fff; border: 2px solid #FFC20E; font: 700 10px/1 'Barlow Condensed', Arial, sans-serif; }
+.imp-pin { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: #17191C; color: #fff; border: 2px solid #B8F34A; font: 700 10px/1 'Barlow Condensed', Arial, sans-serif; }
 .imp-pin-fora { border-color: #FF7A1A; }
 
 /* ---------------------------------------------------------------- vídeos */
@@ -458,3 +458,10 @@ body.com-modal { overflow: hidden; }
   .pv-dir { overflow: visible; }
   .up-grade { grid-template-columns: 1fr; }
 }
+
+/* ---------------------------------------------------------------- crédito */
+.credito { margin: 22px 0 0; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 12px; letter-spacing: .03em; color: var(--muted); }
+.credito b { font-weight: 700; letter-spacing: .08em; color: var(--ink); }
+.credito .sami-simbolo { width: 15px; height: 15px; color: var(--ink); fill: none; stroke: none; }
+.entrada-caixa .credito { margin-top: 18px; }
+@media print { .credito { display: none; } }

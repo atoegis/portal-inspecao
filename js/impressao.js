@@ -128,8 +128,8 @@ function montarMapa(registros, eixos) {
     }).addTo(mapaImp);
     eixos.forEach((e) => {
       if (e.latlngs.length < 2) return;
-      L.polyline(e.latlngs, { color: '#15171A', weight: 6, opacity: 0.7 }).addTo(mapaImp);
-      L.polyline(e.latlngs, { color: '#FFC20E', weight: 2.5 }).addTo(mapaImp);
+      L.polyline(e.latlngs, { color: '#17191C', weight: 6, opacity: 0.7 }).addTo(mapaImp);
+      L.polyline(e.latlngs, { color: '#B8F34A', weight: 2.5 }).addTo(mapaImp);
     });
     comPos.forEach(({ r, i }) => {
       L.marker([r.lat, r.lon], {

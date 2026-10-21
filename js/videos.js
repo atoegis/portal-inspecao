@@ -265,11 +265,11 @@ export function criarVideos(ctx) {
       maxNativeZoom: 19, maxZoom: 20, attribution: 'Imagens © Esri',
     }).addTo(mapaPlayer);
     mapaPlayer.attributionControl.setPrefix(false);
-    L.polyline(pts, { color: '#15171A', weight: 7, opacity: 0.6 }).addTo(mapaPlayer);
+    L.polyline(pts, { color: '#17191C', weight: 7, opacity: 0.6 }).addTo(mapaPlayer);
     L.polyline(pts, { color: '#B57BFF', weight: 4 }).addTo(mapaPlayer);
     L.circleMarker(pts[0], { radius: 6, color: '#fff', weight: 2, fillColor: '#2BB673', fillOpacity: 1 }).bindTooltip('Início').addTo(mapaPlayer);
     L.circleMarker(pts[pts.length - 1], { radius: 6, color: '#fff', weight: 2, fillColor: '#E5484D', fillOpacity: 1 }).bindTooltip('Fim').addTo(mapaPlayer);
-    marcadorAgora = L.circleMarker(pts[0], { radius: 8, color: '#15171A', weight: 3, fillColor: '#FFC20E', fillOpacity: 1 }).addTo(mapaPlayer);
+    marcadorAgora = L.circleMarker(pts[0], { radius: 8, color: '#17191C', weight: 3, fillColor: '#B8F34A', fillOpacity: 1 }).addTo(mapaPlayer);
     const b = L.latLngBounds(pts);
     setTimeout(() => {
       if (!mapaPlayer) return;
