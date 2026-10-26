@@ -24,6 +24,22 @@ export class BaseEstacas {
     return Math.sqrt(x * x + y * y) * 6371008.8;
   }
 
+  /** Ponto da estaca (em metros) no eixo indicado (ou no primeiro eixo). Devolve { lat, lon, distEstaca } ou null. */
+  porEstaca(m, nomeEixo) {
+    let e = nomeEixo ? this.eixos.indexOf(nomeEixo) : 0;
+    if (e < 0) e = 0;
+    let best = -1;
+    let bestD = Infinity;
+    for (let i = 0; i < this.n; i++) {
+      const r = this.rows[i];
+      if (r[3] !== e) continue;
+      const d = Math.abs(r[2] - m);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    if (best < 0 || bestD > 50) return null;
+    return { lat: this.lat[best], lon: this.lon[best], distEstaca: bestD };
+  }
+
   maisProxima(lat, lon) {
     let best = -1;
     let bestD = Infinity;

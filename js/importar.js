@@ -4,7 +4,7 @@
 import { chamar, cacheLer, cacheGravar, local } from './api.js';
 import { fmtNum, fmtData, esc } from './formatos.js';
 import { lerExif } from './exif.js';
-import { lerCoordenada, lerDataHora } from './coordenadas.js';
+import { lerCoordenada, lerDataHora, lerEstacaTexto } from './coordenadas.js';
 import { lerTextoDaFoto } from './ocr.js';
 import { BaseEstacas } from './estacas.js';
 import { renderizar, canvasParaBlob, carregarFonteCarimbo } from './carimbo.js';
@@ -432,7 +432,7 @@ export function criarImportacao(ctx) {
         try {
           const texto = await lerTextoDaFoto(im.fonte, im.w, im.h);
           item.textoLido = texto;
-          const c = lerCoordenada(texto);
+          const c = lerCoordenada(texto, 22, distanciaAoTracado);
           if (c) {
             item.pos = { lat: c.lat, lon: c.lon };
             item.origemPos = 'texto';
@@ -440,8 +440,18 @@ export function criarImportacao(ctx) {
             item.jaTemLegenda = true;
             item.legenda = false; // a foto já tem legenda escrita; não escreve outra por cima
           }
+          // sem coordenada, mas com a estaca escrita ("Km 120+420"): posição aproximada pelo ponto da estaca
+          const est = lerEstacaTexto(texto);
+          if (!item.pos && est && st.base) {
+            const p = st.base.porEstaca(est.m, est.eixo);
+            if (p) {
+              item.pos = { lat: p.lat, lon: p.lon };
+              item.origemPos = 'estaca';
+              item.formatoTexto = 'estaca escrita na foto';
+            }
+          }
           // texto típico de legenda (data/hora ou estaca) mesmo sem coordenada legível: não escreve outra legenda por cima
-          if (!item.jaTemLegenda && (lerDataHora(texto) || /\bEST\.?\s*\d{1,3}\s*\+\s*\d{3}/i.test(texto))) {
+          if (!item.jaTemLegenda && (lerDataHora(texto) || est)) {
             item.jaTemLegenda = true;
             item.legenda = false;
           }
@@ -462,6 +472,13 @@ export function criarImportacao(ctx) {
     }
     calcularEstaca(item, limite);
     return item;
+  }
+
+  /** Distância (graus, aproximada) da coordenada ao traçado: usada para escolher o fuso UTM quando a foto não diz. */
+  function distanciaAoTracado(lat, lon) {
+    if (!st.base) return 0;
+    const e = st.base.maisProxima(lat, lon);
+    return e ? e.distancia : Infinity;
   }
 
   function calcularEstaca(item, limite = (ctx.dados() && ctx.dados().limite) || 40) {
@@ -505,6 +522,7 @@ export function criarImportacao(ctx) {
     if (!it.pos) return '<span class="im-orig im-orig-falta">Sem coordenada</span>';
     if (it.origemPos === 'gps') return '<span class="im-orig im-orig-gps">GPS da foto</span>';
     if (it.origemPos === 'texto') return `<span class="im-orig im-orig-texto" title="Lida no texto da foto (${esc(it.formatoTexto)}). Confira.">Texto na foto</span>`;
+    if (it.origemPos === 'estaca') return '<span class="im-orig im-orig-estaca" title="A foto não tem coordenada, só a estaca escrita. A posição é a do ponto da estaca no eixo.">Estaca na foto</span>';
     return '<span class="im-orig im-orig-dig">Digitada</span>';
   }
 
@@ -515,6 +533,7 @@ export function criarImportacao(ctx) {
     const e = it.estaca;
     if (!e) return '<span class="im-est cinza">Estaca não calculada</span>';
     const eixo = e.eixo && e.eixo !== 'Linha principal' ? ` (${esc(e.eixo)})` : '';
+    if (it.origemPos === 'estaca') return `<span class="im-est"><b>EST ${esc(e.estaca)}</b>${eixo} · posição aproximada (ponto da estaca no eixo)${e.cidade ? ` · ${esc(e.cidade)}` : ''}</span>`;
     if (it.fora) return `<span class="im-est im-est-fora">Fora da faixa de domínio · estaca mais próxima ${esc(e.estaca)}${eixo} a ${fmtDist(e.distancia)} m</span>`;
     return `<span class="im-est"><b>EST ${esc(e.estaca)}</b>${eixo} · a ${fmtDist(e.distancia)} m${e.cidade ? ` · ${esc(e.cidade)}` : ''}</span>`;
   }
@@ -528,6 +547,7 @@ export function criarImportacao(ctx) {
     const lidas = st.itens.filter((i) => !i.falhaLeitura);
     const gps = lidas.filter((i) => i.origemPos === 'gps').length;
     const txt = lidas.filter((i) => i.origemPos === 'texto').length;
+    const pelaEstaca = lidas.filter((i) => i.origemPos === 'estaca').length;
     const dig = lidas.filter((i) => i.origemPos === 'digitada' && i.pos).length;
     const sem = lidas.filter((i) => !i.pos).length;
     const falhas = st.itens.length - lidas.length;
@@ -537,6 +557,7 @@ export function criarImportacao(ctx) {
       `<span><b>${lidas.length}</b> ${lidas.length === 1 ? 'foto lida' : 'fotos lidas'}</span>`,
       gps && `<span class="im-orig im-orig-gps">${gps} GPS da foto</span>`,
       txt && `<span class="im-orig im-orig-texto">${txt} texto na foto</span>`,
+      pelaEstaca && `<span class="im-orig im-orig-estaca">${pelaEstaca} pela estaca</span>`,
       dig && `<span class="im-orig im-orig-dig">${dig} digitada${dig === 1 ? '' : 's'}</span>`,
       sem && `<span class="im-orig im-orig-falta">${sem} sem coordenada</span>`,
       rep && `<span class="im-orig im-orig-rep">${rep} possíve${rep === 1 ? 'l' : 'is'} repetida${rep === 1 ? '' : 's'}</span>`,
@@ -689,7 +710,9 @@ export function criarImportacao(ctx) {
     const e = it.estaca;
     if (e) {
       const eixo = e.eixo && e.eixo !== 'Linha principal' ? ` (${e.eixo})` : '';
-      if (e.distancia > limite) {
+      if (it.origemPos === 'estaca') {
+        L.push({ texto: `EST ${e.estaca}${eixo} (posição pela estaca)`, cor: LIMA, negrito: true });
+      } else if (e.distancia > limite) {
         L.push({ texto: 'FORA DA FAIXA DE DOMÍNIO', cor: LARANJA, negrito: true });
         L.push({ texto: `Estaca mais próxima ${e.estaca}${eixo} a ${fmtDist(e.distancia)} m`, cor: LARANJA, negrito: true });
       } else {
@@ -809,8 +832,8 @@ export function criarImportacao(ctx) {
       eixo: e ? e.eixo : '',
       estaca: e ? e.estaca : '',
       estacaM: e ? e.estacaM : '',
-      distancia: e ? Math.round(e.distancia * 10) / 10 : '',
-      situacao: e ? (it.fora ? 'Fora da faixa de domínio' : 'Dentro da faixa') : '',
+      distancia: e && it.origemPos !== 'estaca' ? Math.round(e.distancia * 10) / 10 : '',
+      situacao: !e ? '' : it.origemPos === 'estaca' ? 'Posição pela estaca' : (it.fora ? 'Fora da faixa de domínio' : 'Dentro da faixa'),
       pacote: e ? e.pacote : '',
       segmento: e ? e.segmento : '',
       cidade: e ? e.cidade : '',
@@ -819,7 +842,7 @@ export function criarImportacao(ctx) {
       oae: e ? e.oae : '',
       categoria: it.categoria,
       descricao: it.descricao.trim(),
-      dispositivo: `Portal (importação) · ${it.origemPos === 'gps' ? 'GPS da foto' : it.origemPos === 'texto' ? 'coordenada lida na foto' : it.origemPos === 'digitada' ? 'coordenada digitada' : 'sem coordenada'}`,
+      dispositivo: `Portal (importação) · ${it.origemPos === 'gps' ? 'GPS da foto' : it.origemPos === 'texto' ? 'coordenada lida na foto' : it.origemPos === 'estaca' ? 'posição pela estaca escrita na foto' : it.origemPos === 'digitada' ? 'coordenada digitada' : 'sem coordenada'}`,
       statusEnvio: 'Pendente',
     };
   }

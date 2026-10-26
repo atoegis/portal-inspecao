@@ -59,8 +59,10 @@ export function utmParaLatLon(E, N, zona, sul = true) {
 /**
  * Procura uma coordenada no texto. Devolve { lat, lon, formato } ou null.
  * zonaPadrao: fuso UTM usado quando o texto não informa (22 na obra).
+ * avaliar(lat, lon): opcional, devolve a distância ao traçado; quando o texto não diz o fuso UTM,
+ * fica o fuso que cai mais perto da obra.
  */
-export function lerCoordenada(texto, zonaPadrao = 22) {
+export function lerCoordenada(texto, zonaPadrao = 22, avaliar = null) {
   const t = limparOCR(texto);
   let m;
 
@@ -89,24 +91,36 @@ export function lerCoordenada(texto, zonaPadrao = 22) {
     if (noBrasil(lat, lon)) return { lat, lon, formato: 'GMS' };
   }
 
-  // 3) UTM: "E 690.444,8  N 8.444.895,5 (22S)" ou "690444 E 8444895 N" ou "22L 690444 8444895"
-  const zonas = [];
-  for (const z of t.matchAll(/\(?\b(1[89]|2[0-5])\s?([C-HJ-NP-X])\b\)?/g)) zonas.push(Number(z[1]));
+  // 3) UTM: "E 690.444,8  N 8.444.895,5 (22S)", "N 8401547 E 603880", "690444 E 8444895 N" ou "22L 690444 8444895"
+  const zonasTexto = [];
+  for (const z of t.matchAll(/\(?\b(1[89]|2[0-5])\s?([C-HJ-NP-X])\b\)?/g)) zonasTexto.push(Number(z[1]));
   const zz = t.match(/(?:zona|fuso)\s*(\d{2})/i);
-  if (zz) zonas.unshift(Number(zz[1]));
-  [zonaPadrao, zonaPadrao - 1, zonaPadrao + 1].forEach((z) => { if (!zonas.includes(z)) zonas.push(z); });
+  if (zz) zonasTexto.unshift(Number(zz[1]));
   const numUTM = (s) => Number(String(s).replace(/[.\s](?=\d{3}(?:\D|$))/g, '').replace(',', '.'));
-  m = t.match(/E\s*[:=]?\s*(\d{3}[.\s]?\d{3}(?:[.,]\d+)?)\D{1,15}N\s*[:=]?\s*(\d{1,2}[.\s]?\d{3}[.\s]?\d{3}(?:[.,]\d+)?)/i)
-    || t.match(/(\d{3}[.\s]?\d{3}(?:[.,]\d+)?)\s*(?:m\s*)?E\b\D{1,15}(\d{1,2}[.\s]?\d{3}[.\s]?\d{3}(?:[.,]\d+)?)\s*(?:m\s*)?N\b/i);
-  if (m) {
-    const E = numUTM(m[1]);
-    const N = numUTM(m[2]);
-    if (E > 100000 && E < 900000 && N > 6000000 && N < 10000000) {
-      for (const zona of zonas) {
-        const r = utmParaLatLon(E, N, zona, true);
-        if (noBrasil(r.lat, r.lon)) return { ...r, formato: `UTM ${zona}S` };
-      }
+  const LE = '(\\d{3}[.\\s]?\\d{3}(?:[.,]\\d+)?)';                 // Este: 6 dígitos
+  const LN = '(\\d{1,2}[.\\s]?\\d{3}[.\\s]?\\d{3}(?:[.,]\\d+)?)';   // Norte: 7 dígitos
+  const padroes = [
+    [new RegExp(`\\bE\\s*[:=]?\\s*${LE}\\D{1,15}?\\bN\\s*[:=]?\\s*${LN}`, 'i'), 1, 2],
+    [new RegExp(`\\bN\\s*[:=]?\\s*${LN}\\D{1,15}?\\bE\\s*[:=]?\\s*${LE}`, 'i'), 2, 1],
+    [new RegExp(`${LE}\\s*(?:m\\s*)?E\\b\\D{1,15}?${LN}\\s*(?:m\\s*)?N\\b`, 'i'), 1, 2],
+    [new RegExp(`${LN}\\s*(?:m\\s*)?N\\b\\D{1,15}?${LE}\\s*(?:m\\s*)?E\\b`, 'i'), 2, 1],
+  ];
+  for (const [rx, iE, iN] of padroes) {
+    m = t.match(rx);
+    if (!m) continue;
+    const E = numUTM(m[iE]);
+    const N = numUTM(m[iN]);
+    if (!(E > 100000 && E < 900000 && N > 6000000 && N < 10000000)) continue;
+    const zonas = zonasTexto.length ? zonasTexto : [zonaPadrao, zonaPadrao - 1, zonaPadrao + 1];
+    const cands = zonas.map((zona) => ({ ...utmParaLatLon(E, N, zona, true), formato: `UTM ${zona}S` }))
+      .filter((r) => noBrasil(r.lat, r.lon));
+    if (!cands.length) continue;
+    if (avaliar && !zonasTexto.length && cands.length > 1) {
+      cands.forEach((c) => { c.d = avaliar(c.lat, c.lon); });
+      cands.sort((a, b) => a.d - b.d);
+      delete cands[0].d;
     }
+    return cands[0];
   }
 
   // 4) graus decimais com hemisfério: "14,060273 S  49,236258 W" ou "S 14.0603 W 49.2362"
@@ -129,12 +143,27 @@ export function lerCoordenada(texto, zonaPadrao = 22) {
   return null;
 }
 
-/** Data e hora escritas no texto: "21/10/2026 14:52:08", "2026-10-21 14:52", "21.10.2026 14h52". */
+const MESES = { jan: 1, fev: 2, feb: 2, mar: 3, abr: 4, apr: 4, mai: 5, may: 5, jun: 6, jul: 7, ago: 8, aug: 8, set: 9, sep: 9, out: 10, oct: 10, nov: 11, dez: 12, dec: 12 };
+
+/** Data e hora escritas no texto: "21/10/2026 14:52:08", "2026-10-21 14:52", "21.10.2026 14h52", "14 de out. de 2026, 10:20:55". */
 export function lerDataHora(texto) {
   const t = limparOCR(texto);
+  const mm = t.match(/(\d{1,2})\s*(?:de\s*)?([a-zç]{3})[a-zç]*\.?\s*(?:de\s*)?(\d{4})[\s,.-]+(?:às\s*)?(\d{1,2})[:h](\d{2})(?::(\d{2}))?/i);
+  if (mm && MESES[mm[2].toLowerCase()]) {
+    const p = (x) => String(x).padStart(2, '0');
+    return new Date(`${mm[3]}-${p(MESES[mm[2].toLowerCase()])}-${p(mm[1])}T${p(mm[4])}:${mm[5]}:${mm[6] || '00'}-03:00`);
+  }
   let m = t.match(/(\d{2})[/.-](\d{2})[/.-](\d{4})[\sT,]+(\d{1,2})[:h](\d{2})(?::(\d{2}))?/);
   if (m) return new Date(`${m[3]}-${m[2]}-${m[1]}T${m[4].padStart(2, '0')}:${m[5]}:${m[6] || '00'}-03:00`);
   m = t.match(/(\d{4})[/.-](\d{2})[/.-](\d{2})[\sT,]+(\d{1,2})[:h](\d{2})(?::(\d{2}))?/);
   if (m) return new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4].padStart(2, '0')}:${m[5]}:${m[6] || '00'}-03:00`);
   return null;
+}
+
+/** Estaca escrita no texto ("Km 120+420", "EST 12+300", "Estaca 5+020 (Alça Sul)"). Devolve { m, eixo } ou null. */
+export function lerEstacaTexto(texto) {
+  const t = limparOCR(texto);
+  const m = t.match(/(?:\bKm|\bEST(?:ACA)?\.?)\s*[:=]?\s*(\d{1,3})\s*\+\s*(\d{3}(?:[.,]\d+)?)/i);
+  if (!m) return null;
+  return { m: Number(m[1]) * 1000 + Number(m[2].replace(',', '.')), eixo: /al[cç]a\s*sul/i.test(t) ? 'Alça Sul' : '' };
 }
