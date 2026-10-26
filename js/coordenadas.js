@@ -148,10 +148,11 @@ const MESES = { jan: 1, fev: 2, feb: 2, mar: 3, abr: 4, apr: 4, mai: 5, may: 5, 
 /** Data e hora escritas no texto: "21/10/2026 14:52:08", "2026-10-21 14:52", "21.10.2026 14h52", "14 de out. de 2026, 10:20:55". */
 export function lerDataHora(texto) {
   const t = limparOCR(texto);
-  const mm = t.match(/(\d{1,2})\s*(?:de\s*)?([a-zç]{3})[a-zç]*\.?\s*(?:de\s*)?(\d{4})[\s,.-]+(?:às\s*)?(\d{1,2})[:h](\d{2})(?::(\d{2}))?/i);
-  if (mm && MESES[mm[2].toLowerCase()]) {
+  const mm = t.match(/(\d{1,2})\s*\.?\s*(?:de\s*)?([a-zç]{3})[a-zç]*[.:,"'\s]*(?:de\s*)?(\d{4})[\s,.;/-]+(?:às\s*)?(\d{1,2})[:h.](\d{2})(?:[:.](\d{2}))?/i);
+  const mes = mm && (MESES[mm[2].toLowerCase()] || MESES[mm[2].toLowerCase().replace(/^q/, 'o').replace(/l$/, 't')]);
+  if (mes) {
     const p = (x) => String(x).padStart(2, '0');
-    return new Date(`${mm[3]}-${p(MESES[mm[2].toLowerCase()])}-${p(mm[1])}T${p(mm[4])}:${mm[5]}:${mm[6] || '00'}-03:00`);
+    return new Date(`${mm[3]}-${p(mes)}-${p(mm[1])}T${p(mm[4])}:${mm[5]}:${mm[6] || '00'}-03:00`);
   }
   let m = t.match(/(\d{2})[/.-](\d{2})[/.-](\d{4})[\sT,]+(\d{1,2})[:h](\d{2})(?::(\d{2}))?/);
   if (m) return new Date(`${m[3]}-${m[2]}-${m[1]}T${m[4].padStart(2, '0')}:${m[5]}:${m[6] || '00'}-03:00`);

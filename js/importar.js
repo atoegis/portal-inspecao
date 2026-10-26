@@ -430,7 +430,7 @@ export function criarImportacao(ctx) {
       if (!item.pos && opcoes.ocr) {
         aoEtapa('procurando a coordenada escrita na foto…');
         try {
-          const texto = await lerTextoDaFoto(im.fonte, im.w, im.h);
+          const texto = await lerTextoDaFoto(im.fonte, im.w, im.h, (t) => !!lerCoordenada(t, 22, distanciaAoTracado));
           item.textoLido = texto;
           const c = lerCoordenada(texto, 22, distanciaAoTracado);
           if (c) {
