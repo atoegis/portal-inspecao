@@ -4,6 +4,9 @@ import { fmtEstaca, fmtNum, esc } from './formatos.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const PAD = 14;
+// Estacas em ordem decrescente da esquerda para a direita, como aparecem no mapa
+// (no traçado, os quilômetros crescem para a esquerda).
+const DECRESCENTE = true;
 const BARRA_TOPO = 4;
 const FAIXA_H = 9;
 // alturas calculadas a cada desenho, conforme o espaço disponível
@@ -22,8 +25,12 @@ export function criarRegua(svg, { aoSelecionarTrecho }) {
 
   const largura = () => Math.max(200, svg.clientWidth || svg.parentElement.clientWidth || 600);
   const util = () => largura() - PAD * 2;
-  const xDe = (m) => PAD + ((m - eixo.de) / (eixo.ate - eixo.de || 1)) * util();
-  const mDe = (x) => eixo.de + ((Math.min(Math.max(x, PAD), PAD + util()) - PAD) / util()) * (eixo.ate - eixo.de);
+  const fracao = (m) => (m - eixo.de) / (eixo.ate - eixo.de || 1);
+  const xDe = (m) => PAD + (DECRESCENTE ? 1 - fracao(m) : fracao(m)) * util();
+  const mDe = (x) => {
+    const f = (Math.min(Math.max(x, PAD), PAD + util()) - PAD) / util();
+    return eixo.de + (DECRESCENTE ? 1 - f : f) * (eixo.ate - eixo.de);
+  };
 
   function el(nome, attrs, pai) {
     const e = document.createElementNS(NS, nome);
@@ -66,8 +73,8 @@ export function criarRegua(svg, { aoSelecionarTrecho }) {
     contagem.forEach((n, k) => {
       const m0 = eixo.de + k * bin;
       const m1 = Math.min(eixo.ate, m0 + bin);
-      const x0 = xDe(m0);
-      const w = Math.max(2, xDe(m1) - x0 - 1);
+      const x0 = Math.min(xDe(m0), xDe(m1));
+      const w = Math.max(2, Math.abs(xDe(m1) - xDe(m0)) - 1);
       const h = 4 + (n / max) * (BARRA_BASE - BARRA_TOPO - 4);
       const dentro = !temSel || ((sel.de == null || m1 > sel.de) && (sel.ate == null || m0 < sel.ate));
       const r = el('rect', { x: x0, y: BARRA_BASE - h, width: w, height: h, class: dentro ? 'r-barra' : 'r-barra r-barra-fora' }, gBarras);
@@ -83,8 +90,8 @@ export function criarRegua(svg, { aoSelecionarTrecho }) {
       if (ult && ult.seg === t.seg) { ult.ate = t.ate; if (!ult.cidades.includes(t.cidade)) ult.cidades.push(t.cidade); } else segs.push({ seg: t.seg, de: t.de, ate: t.ate, cidades: [t.cidade] });
     });
     segs.forEach((s, i) => {
-      const x0 = xDe(s.de);
-      const w = Math.max(1, xDe(s.ate) - x0);
+      const x0 = Math.min(xDe(s.de), xDe(s.ate));
+      const w = Math.max(1, Math.abs(xDe(s.ate) - xDe(s.de)));
       const r = el('rect', { x: x0, y: FAIXA_Y, width: w, height: FAIXA_H, class: i % 2 ? 'r-seg r-seg-b' : 'r-seg' }, gSeg);
       el('title', {}, r).textContent = `Segmento ${s.seg}: ${fmtEstaca(s.de)} a ${fmtEstaca(s.ate)}${s.cidades.filter(Boolean).length ? ` (${s.cidades.filter(Boolean).join(', ')})` : ''}`;
       if (s.seg && w > String(s.seg).length * 5.2 + 8) {
@@ -187,8 +194,10 @@ export function criarRegua(svg, { aoSelecionarTrecho }) {
       else desenhar(ultimo.regs, ultimo.sel, ultimo.marca);
       return;
     }
-    const a = Math.round(mDe(Math.min(x0, x1)) / 10) * 10;
-    const b = Math.round(mDe(Math.max(x0, x1)) / 10) * 10;
+    const ma = mDe(x0);
+    const mb = mDe(x1);
+    const a = Math.round(Math.min(ma, mb) / 10) * 10;
+    const b = Math.round(Math.max(ma, mb) / 10) * 10;
     aoSelecionarTrecho(eixo.nome, a, b);
   };
   svg.addEventListener('pointerup', fim);

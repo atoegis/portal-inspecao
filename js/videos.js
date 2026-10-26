@@ -52,7 +52,9 @@ export function criarVideos(ctx) {
       o.rel = o.idRelatorio ? rels.get(o.idRelatorio) || null : null;
       o.trecho = o.estIni ? (o.estIni === o.estFim ? `EST ${o.estIni}` : `EST ${o.estIni} a ${o.estFim}`) : '';
       if (o.trecho && o.eixo && o.eixo !== 'Linha principal') o.trecho += ` (${o.eixo})`;
-      o.busca = normalizar([o.descricao, o.inspetor, o.trecho, o.categoria, o.nome, o.idRelatorio, o.rel && o.rel.objeto].join(' '));
+      const d = ctx.dados();
+      o.nomeEquipe = d && d.nomeEquipe ? (d.nomeEquipe.get(o.equipe) || o.equipe || '') : '';
+      o.busca = normalizar([o.descricao, o.inspetor, o.trecho, o.categoria, o.nome, o.idRelatorio, o.rel && o.rel.objeto, d && d.master ? o.nomeEquipe : ''].join(' '));
       return o;
     });
     st.compartilhado = resp.compartilhado !== false;
@@ -107,7 +109,7 @@ export function criarVideos(ctx) {
         <strong>${esc(v.trecho || 'Sem estaca')}</strong>
         <span>${v.d ? `${fmtData(v.d)} ${fmtHora(v.d)}` : ''}${v.inspetor ? ` · ${esc(v.inspetor)}` : ''}</span>
         <span class="v-desc">${esc(v.descricao) || '<span class="sem">Sem descrição</span>'}</span>
-        <span class="v-tags">${v.rel ? `<em>${esc(v.rel.objeto || v.rel.tipo)}</em>` : ''}${v.categoria ? `<em>${esc(v.categoria)}</em>` : ''}${v.foraSeg ? `<em class="tag-fora">${fmtNum(v.foraSeg)} s fora da faixa</em>` : ''}</span>
+        <span class="v-tags">${ctx.dados() && ctx.dados().master && v.nomeEquipe ? `<em class="tag-equipe">${esc(v.nomeEquipe)}</em>` : ''}${v.rel ? `<em>${esc(v.rel.objeto || v.rel.tipo)}</em>` : ''}${v.categoria ? `<em>${esc(v.categoria)}</em>` : ''}${v.foraSeg ? `<em class="tag-fora">${fmtNum(v.foraSeg)} s fora da faixa</em>` : ''}</span>
       </span>
     </button>`).join('');
   }
@@ -313,7 +315,17 @@ export function criarVideos(ctx) {
     const d = ctx.dados();
     const cats = d ? (d.listas.categorias || []) : [];
     $('#up-cat').innerHTML = `<option value="">Sem categoria</option>${cats.map((c) => `<option>${esc(c)}</option>`).join('')}`;
-    const rels = d ? [...d.relatorios].sort((a, b) => (b.dInicio || 0) - (a.dInicio || 0)) : [];
+    const master = !!(d && d.master);
+    $('#up-equipe-campo').hidden = !master;
+    if (master) {
+      const atualEq = $('#up-equipe').value;
+      const eqs = d.equipes.filter((e) => e.ativa !== false).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+      $('#up-equipe').innerHTML = `<option value="">Escolha a equipe</option>${eqs.map((e) => `<option value="${esc(e.id)}">${esc(e.nome)}</option>`).join('')}`;
+      if (eqs.length === 1) $('#up-equipe').value = eqs[0].id;
+      else if (eqs.some((e) => e.id === atualEq)) $('#up-equipe').value = atualEq;
+    }
+    const eqSel = master ? $('#up-equipe').value : '';
+    const rels = d ? [...d.relatorios].filter((r) => !master || r.equipe === eqSel).sort((a, b) => (b.dInicio || 0) - (a.dInicio || 0)) : [];
     $('#up-rel').innerHTML = `<option value="">Nenhum (vídeo avulso)</option>${rels.map((r) => `<option value="${esc(r.id)}">${esc([fmtData(r.dInicio), r.tipo, r.objeto].filter(Boolean).join(' – '))}</option>`).join('')}`;
   }
 
@@ -398,7 +410,9 @@ export function criarVideos(ctx) {
 
   async function chamarEquipe(action, dados, timeout) {
     const cod = local.ler(CHAVE_EQUIPE);
-    return chamar(action, cod ? { ...dados, codigo: cod } : dados, timeout);
+    const d = ctx.dados();
+    const eq = d && d.master ? $('#up-equipe').value : '';
+    return chamar(action, { ...dados, ...(cod ? { codigo: cod } : {}), ...(eq ? { equipe: eq } : {}) }, timeout);
   }
 
   function blobBase64(b) {
@@ -415,6 +429,12 @@ export function criarVideos(ctx) {
   async function enviar() {
     const u = st.up;
     if (!u || !u.video || u.ativo) return;
+    if (ctx.dados() && ctx.dados().master && !$('#up-equipe').value) {
+      $('#up-erro').textContent = 'Escolha a equipe do vídeo.';
+      $('#up-erro').hidden = false;
+      $('#up-equipe').focus();
+      return;
+    }
     const campoCod = $('#up-codigo');
     if (!$('#up-codigo-campo').hidden) {
       const c = campoCod.value.trim();
@@ -546,6 +566,11 @@ export function criarVideos(ctx) {
 
   // -------------------------------------------------------------- ligações
   $('#v-carregar').addEventListener('click', abrirCarga);
+  $('#up-equipe').addEventListener('change', () => {
+    const rel = $('#up-rel').value;
+    preencherSelects();
+    if ([...$('#up-rel').options].some((o) => o.value === rel)) $('#up-rel').value = rel;
+  });
   $('#v-texto').addEventListener('input', () => render());
   $('#v-rel').addEventListener('change', () => render());
   $('#v-grade').addEventListener('click', (ev) => {

@@ -51,7 +51,9 @@ export async function gerarRelatorioFotografico({ registros, relatorio, descrica
     : '';
   const fora = registros.filter((r) => r.fora).length;
   const titulo = relatorio ? (relatorio.objeto || relatorio.tipo || 'Relatório de inspeção') : 'Registro fotográfico';
+  const equipes = [...new Set(registros.map((r) => r.nomeEquipe).filter(Boolean))].join(', ');
   const dados = [
+    ['Equipe', equipes],
     relatorio && ['Tipo', relatorio.tipo],
     relatorio && ['Relatório', relatorio.id],
     ['Inspetor', inspetores],

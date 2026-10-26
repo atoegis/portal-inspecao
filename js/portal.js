@@ -5,12 +5,13 @@ import {
   plural, fmtLatLon, fmtUTM, esc, normalizar,
 } from './formatos.js';
 import { corCategoria, corRegistro, SEM_CATEGORIA, COR_DENTRO, COR_FORA } from './cores.js';
-import { observarMiniaturas, foto } from './fotos.js';
+import { observarMiniaturas, foto, reduzir } from './fotos.js';
 import { criarMapa } from './mapa.js';
 import { criarRegua } from './regua.js';
 import { gerarRelatorioFotografico } from './impressao.js';
-import { exportarCSV, exportarKML } from './exportar.js';
+import { exportarCSV, exportarKML, exportarKMZ } from './exportar.js';
 import { criarVideos } from './videos.js';
+import { criarImportacao } from './importar.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -32,7 +33,7 @@ const estado = {
 };
 
 const filtrosVazios = () => ({
-  texto: '', de: '', ate: '', relatorio: '', cats: new Set(), situacao: '',
+  texto: '', de: '', ate: '', relatorio: '', cats: new Set(), situacao: '', equipe: '',
   tipo: '', inspetor: '', eixo: '', segmento: '', cidade: '', pacote: '',
   estDe: null, estAte: null, elemento: '',
 });
@@ -106,9 +107,14 @@ function mostrarEntrada(msg) {
 
 // ================================================================ dados
 function prepararDados(resp) {
+  const equipes = resp.equipes || [];
+  const nomeEquipe = new Map(equipes.map((e) => [e.id, e.nome]));
+  const acesso = resp.acesso || { perfil: 'consulta', equipe: '', nomeEquipe: '' };
   const relatorios = (resp.relatorios || []).map((l) => {
     const o = {};
     resp.camposRelatorio.forEach((c, i) => { o[c] = l[i]; });
+    o.equipe = o.equipe || '';
+    o.nomeEquipe = nomeEquipe.get(o.equipe) || o.equipe;
     o.dInicio = paraData(o.inicio);
     o.dFim = paraData(o.encerramento);
     return o;
@@ -120,13 +126,18 @@ function prepararDados(resp) {
     o.d = paraData(o.data);
     o.dia = diaISO(o.d);
     o.cat = o.categoria || SEM_CATEGORIA;
+    o.equipe = o.equipe || '';
+    o.nomeEquipe = nomeEquipe.get(o.equipe) || o.equipe;
     o.fora = o.situacao === 'Fora da faixa de domínio';
     o.rel = o.idRelatorio ? relPorId.get(o.idRelatorio) || null : null;
     o.tipoRel = o.rel ? o.rel.tipo : '';
-    o.temPos = isFinite(o.lat) && isFinite(o.lon) && o.lat != null && o.lon != null && (o.lat !== 0 || o.lon !== 0);
+    const temNum = (v) => v !== '' && v != null && isFinite(Number(v));
+    o.temPos = temNum(o.lat) && temNum(o.lon) && (Number(o.lat) !== 0 || Number(o.lon) !== 0);
+    if (o.temPos) { o.lat = Number(o.lat); o.lon = Number(o.lon); } else { o.lat = null; o.lon = null; }
+    ['estacaM', 'distancia', 'precisao'].forEach((c) => { o[c] = temNum(o[c]) ? Number(o[c]) : null; });
     o.elementos = normalizar([o.infra, o.super, o.oae].join(' '));
     o.busca = normalizar([o.descricao, o.estaca, o.inspetor, o.categoria, o.infra, o.super, o.oae,
-      o.cidade, o.segmento, o.idRelatorio, o.rel && o.rel.objeto].join(' '));
+      o.cidade, o.segmento, o.idRelatorio, o.rel && o.rel.objeto, acesso.perfil === 'master' ? o.nomeEquipe : ''].join(' '));
     return o;
   });
   // números de cada relatório calculados pelas fotos
@@ -152,7 +163,8 @@ function prepararDados(resp) {
     }
   });
   return {
-    registros, relatorios, relPorId,
+    registros, relatorios, relPorId, equipes, nomeEquipe, acesso,
+    master: acesso.perfil === 'master',
     listas: resp.listas || { tipos: [], categorias: [] },
     limite: resp.limite || 40,
     pastaFotos: resp.pastaFotos || '',
@@ -174,6 +186,7 @@ function abrirPortal(resp, doCache) {
     lerHash();
     carregarEixos();
   }
+  aplicarAcesso();
   preencherOpcoes();
   aplicarFiltrosNaTela();
   recalcular({ enquadrar: true });
@@ -190,6 +203,7 @@ async function atualizar(silencioso) {
     cacheGravar('kv', 'portal', resp);
     estado.dados = prepararDados(resp);
     if (estado.dados.versaoEstacas && estado.eixosVersao && estado.dados.versaoEstacas !== estado.eixosVersao) carregarEixos(true);
+    aplicarAcesso();
     preencherOpcoes();
     aplicarFiltrosNaTela();
     recalcular({ enquadrar: false });
@@ -209,6 +223,20 @@ async function atualizar(silencioso) {
   } finally {
     btn.classList.remove('girando');
   }
+}
+
+/** Nome da equipe no topo e controles que só o código master vê (filtro e coluna de equipe). */
+function aplicarAcesso() {
+  const d = estado.dados;
+  const selo = $('#equipe-selo');
+  selo.textContent = d.acesso.nomeEquipe || '';
+  selo.hidden = !d.acesso.nomeEquipe;
+  selo.classList.toggle('selo-master', d.master);
+  selo.title = d.master ? 'Código master: todas as equipes' : d.acesso.perfil === 'equipe' ? 'Código da equipe (consulta e envio)' : 'Código de consulta da equipe';
+  document.body.classList.toggle('perfil-master', d.master);
+  $('#grupo-equipe').hidden = !d.master || d.equipes.length < 2;
+  $('#r-equipe').hidden = !d.master || d.equipes.length < 2;
+  if (!d.master) filtros.equipe = '';
 }
 
 function mostrarEstadoDados(doCache, erro) {
@@ -254,6 +282,18 @@ function usarEixos(resp) {
 // ================================================================ interface
 function montarInterface() {
   videos = criarVideos({ dados: () => estado.dados, avisar });
+  criarImportacao({
+    dados: () => estado.dados,
+    avisar,
+    atualizar: () => atualizar(false),
+    verRelatorio: (id) => {
+      filtros = filtrosVazios();
+      filtros.relatorio = id;
+      aplicarFiltrosNaTela();
+      irPara('mapa');
+      recalcular({ enquadrar: true });
+    },
+  });
   mapa = criarMapa($('#mapa'), {
     aoSelecionar: (id) => selecionar(id, { centralizar: false }),
   });
@@ -278,6 +318,7 @@ function montarInterface() {
   $('#btn-sair').addEventListener('click', async () => {
     if (!confirm('Sair do portal neste computador? O código será pedido de novo.')) return;
     local.apagar(CHAVE_CODIGO);
+    local.apagar('portal-inspecao:codigoEquipe');
     await cacheLimpar();
     location.hash = '';
     location.reload();
@@ -288,7 +329,7 @@ function montarInterface() {
   // filtros
   const aoDigitar = adiar(() => { lerFiltrosDaTela(); recalcular({}); }, 220);
   $('#f-texto').addEventListener('input', aoDigitar);
-  ['#f-de', '#f-ate', '#f-relatorio', '#f-tipo', '#f-inspetor', '#f-eixo', '#f-segmento', '#f-cidade', '#f-pacote']
+  ['#f-de', '#f-ate', '#f-relatorio', '#f-equipe', '#f-tipo', '#f-inspetor', '#f-eixo', '#f-segmento', '#f-cidade', '#f-pacote']
     .forEach((s) => $(s).addEventListener('change', () => {
       lerFiltrosDaTela();
       recalcular({ enquadrar: s === '#f-relatorio' || s === '#f-eixo' || s === '#f-segmento' || s === '#f-cidade' });
@@ -415,6 +456,7 @@ function montarInterface() {
   $('#r-texto').addEventListener('input', adiar(renderRelatorios, 200));
   $('#r-tipo').addEventListener('change', renderRelatorios);
   $('#r-status').addEventListener('change', renderRelatorios);
+  $('#r-equipe').addEventListener('change', renderRelatorios);
   $$('#tabela-rel th.ord').forEach((th) => th.addEventListener('click', () => {
     const c = th.dataset.ord;
     estado.relOrdem = { campo: c, desc: estado.relOrdem.campo === c ? !estado.relOrdem.desc : c === 'inicio' };
@@ -482,6 +524,16 @@ function preencherOpcoes() {
     recalcular({});
   }));
 
+  // equipes (só o master vê)
+  const eqs = [...estado.dados.equipes].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  const opEq = (todos) => `<option value="">${todos}</option>${eqs.map((e) => `<option value="${esc(e.id)}">${esc(e.nome)}${e.ativa === false ? ' (inativa)' : ''}</option>`).join('')}`;
+  ['#f-equipe', '#r-equipe'].forEach((q) => {
+    const el = $(q);
+    const atual = el.value;
+    el.innerHTML = opEq(q === '#f-equipe' ? 'Todas' : 'Todas as equipes');
+    if (eqs.some((e) => e.id === atual)) el.value = atual;
+  });
+
   // relatórios (aba)
   opcoes('#r-tipo', 'Todos os tipos', [...new Set(estado.dados.relatorios.map((r) => r.tipo).filter(Boolean))].sort());
   opcoes('#r-status', 'Abertos e encerrados', [...new Set(estado.dados.relatorios.map((r) => r.status).filter(Boolean))].sort());
@@ -511,6 +563,7 @@ function lerFiltrosDaTela() {
   filtros.de = $('#f-de').value;
   filtros.ate = $('#f-ate').value;
   filtros.relatorio = $('#f-relatorio').value;
+  filtros.equipe = $('#f-equipe').value;
   filtros.tipo = $('#f-tipo').value;
   filtros.inspetor = $('#f-inspetor').value;
   filtros.eixo = $('#f-eixo').value;
@@ -529,6 +582,7 @@ function aplicarFiltrosNaTela(soEstado) {
     $('#f-de').value = filtros.de;
     $('#f-ate').value = filtros.ate;
     garantirOpcao('#f-relatorio', filtros.relatorio);
+    $('#f-equipe').value = filtros.equipe;
     $('#f-tipo').value = filtros.tipo;
     $('#f-inspetor').value = filtros.inspetor;
     garantirOpcao('#f-eixo', filtros.eixo);
@@ -565,7 +619,7 @@ function garantirOpcao(sel, valor) {
 
 function temFiltro() {
   const f = filtros;
-  return !!(f.texto || f.de || f.ate || f.relatorio || f.cats.size || f.situacao || f.tipo || f.inspetor || f.eixo
+  return !!(f.texto || f.de || f.ate || f.relatorio || f.equipe || f.cats.size || f.situacao || f.tipo || f.inspetor || f.eixo
     || f.segmento || f.cidade || f.pacote || f.estDe != null || f.estAte != null || f.elemento);
 }
 
@@ -573,6 +627,7 @@ function passa(r, f, ignorarTrecho) {
   if (f.de && (!r.dia || r.dia < f.de)) return false;
   if (f.ate && (!r.dia || r.dia > f.ate)) return false;
   if (f.relatorio === SO_INDIVIDUAIS) { if (r.idRelatorio) return false; } else if (f.relatorio && r.idRelatorio !== f.relatorio) return false;
+  if (f.equipe && r.equipe !== f.equipe) return false;
   if (f.cats.size && !f.cats.has(r.cat)) return false;
   if (f.situacao === 'fora' && !r.fora) return false;
   if (f.situacao === 'dentro' && (r.fora || !r.situacao)) return false;
@@ -622,6 +677,7 @@ function ordenar() {
 function descreverFiltros() {
   const f = filtros;
   const p = [];
+  if (f.equipe) p.push(`equipe ${estado.dados.nomeEquipe.get(f.equipe) || f.equipe}`);
   if (f.relatorio === SO_INDIVIDUAIS) p.push('fotos individuais');
   else if (f.relatorio) { const r = estado.dados.relPorId.get(f.relatorio); p.push(`relatório ${r ? rotuloRelatorio(r) : f.relatorio}`); }
   if (f.de || f.ate) p.push(`período ${f.de ? fmtData(paraData(`${f.de.split('-').reverse().join('/')}`)) : 'início'} a ${f.ate ? fmtData(paraData(`${f.ate.split('-').reverse().join('/')}`)) : 'hoje'}`);
@@ -647,6 +703,7 @@ function escreverHash() {
   if (f.de) q.set('de', f.de);
   if (f.ate) q.set('ate', f.ate);
   if (f.relatorio) q.set('rel', f.relatorio);
+  if (f.equipe) q.set('eq', f.equipe);
   if (f.cats.size) q.set('cat', [...f.cats].join('|'));
   if (f.situacao) q.set('faixa', f.situacao);
   ['tipo', 'inspetor', 'eixo', 'segmento', 'cidade', 'pacote', 'elemento'].forEach((k) => { if (f[k]) q.set(k, f[k]); });
@@ -667,6 +724,7 @@ function lerHash(deEvento) {
     filtros.de = q.get('de') || '';
     filtros.ate = q.get('ate') || '';
     filtros.relatorio = q.get('rel') || '';
+    filtros.equipe = q.get('eq') || '';
     filtros.cats = new Set((q.get('cat') || '').split('|').filter(Boolean));
     filtros.situacao = q.get('faixa') || '';
     ['tipo', 'inspetor', 'eixo', 'segmento', 'cidade', 'pacote', 'elemento'].forEach((k) => { filtros[k] = q.get(k) || ''; });
@@ -818,6 +876,7 @@ function renderDetalhe() {
   $('#d-desc').innerHTML = r.descricao ? esc(r.descricao) : '<span class="sem">Sem descrição</span>';
   const rel = r.rel;
   const linhas = [
+    ['Equipe', estado.dados.master ? esc(r.nomeEquipe) : ''],
     ['Categoria', `<i class="ponto" style="--c:${corCategoria(r.cat)}"></i>${esc(r.cat)}`],
     ['Inspetor', esc(r.inspetor)],
     ['Relatório', rel ? `<a href="#" data-ver-rel="${esc(rel.id)}">${esc(rotuloRelatorio(rel))}</a>` : (r.idRelatorio ? esc(r.idRelatorio) : 'Foto individual')],
@@ -916,8 +975,9 @@ function renderRelatorios() {
   const txt = normalizar($('#r-texto').value);
   const tipo = $('#r-tipo').value;
   const st = $('#r-status').value;
-  let lista = d.relatorios.filter((r) => (!tipo || r.tipo === tipo) && (!st || r.status === st)
-    && (!txt || normalizar([r.id, r.tipo, r.objeto, r.inspetor, r.observacoes, r.trecho].join(' ')).includes(txt)));
+  const eq = d.master ? $('#r-equipe').value : '';
+  let lista = d.relatorios.filter((r) => (!tipo || r.tipo === tipo) && (!st || r.status === st) && (!eq || r.equipe === eq)
+    && (!txt || normalizar([r.id, r.tipo, r.objeto, r.inspetor, r.observacoes, r.trecho, d.master ? r.nomeEquipe : ''].join(' ')).includes(txt)));
   const { campo, desc } = estado.relOrdem;
   const val = (r) => {
     if (campo === 'inicio') return r.dInicio ? r.dInicio.getTime() : 0;
@@ -948,6 +1008,7 @@ function renderRelatorios() {
   vazio.hidden = true;
   tbody.innerHTML = lista.map((r) => `<tr data-id="${esc(r.id)}">
     <td class="nowrap">${r.dInicio ? `${fmtData(r.dInicio)}<small>${fmtHora(r.dInicio)}${r.dFim ? ` a ${fmtData(r.dFim) === fmtData(r.dInicio) ? fmtHora(r.dFim) : fmtDataHora(r.dFim)}` : ''}</small>` : ''}</td>
+    ${d.master ? `<td class="col-equipe">${esc(r.nomeEquipe)}</td>` : ''}
     <td>${esc(r.tipo)}</td>
     <td class="objeto"><b>${esc(r.objeto) || '<span class="sem">Sem objeto</span>'}</b><small>${esc(r.id)}${r.observacoes ? ` – ${esc(r.observacoes)}` : ''}</small></td>
     <td>${esc(r.inspetor)}</td>
@@ -969,6 +1030,7 @@ async function exportar(tipo, regs, descricao, relatorio) {
   const nomeBase = relatorio ? `relatorio_${relatorio.id}` : `fotos_${hojeISO(0)}`;
   if (tipo === 'csv') { exportarCSV(regs, nomeBase); return; }
   if (tipo === 'kml') { exportarKML(regs, nomeBase, estado.corPor); return; }
+  if (tipo === 'kmz') { await exportarFotosKMZ(regs, nomeBase); return; }
   if (regs.length > 120 && !confirm(`O relatório terá ${fmtNum(regs.length)} fotos e pode demorar alguns minutos para montar. Continuar?`)) return;
   let cancelado = false;
   mostrarCarregando('Preparando o relatório fotográfico…', 0, () => { cancelado = true; });
@@ -984,6 +1046,35 @@ async function exportar(tipo, regs, descricao, relatorio) {
     });
   } catch (e) {
     if (!cancelado) avisar(e.message || 'Não foi possível montar o relatório.', true);
+  } finally {
+    esconderCarregando();
+  }
+}
+
+async function exportarFotosKMZ(regs, nomeBase) {
+  const comPos = regs.filter((r) => r.temPos && (r.fotoCom || r.fotoSem));
+  if (!comPos.length) { avisar('Nenhuma foto com coordenada nesses filtros.', true); return; }
+  const mb = Math.max(1, Math.round(comPos.length * 0.25));
+  if (comPos.length > 60 && !confirm(`O KMZ terá ${fmtNum(comPos.length)} fotos (cerca de ${fmtNum(mb)} MB) e pode levar alguns minutos para baixar. Continuar?`)) return;
+  let cancelado = false;
+  const cancelar = () => { cancelado = true; };
+  mostrarCarregando('Preparando o KMZ…', 0, cancelar);
+  try {
+    const r = await exportarKMZ(regs, nomeBase, estado.corPor, {
+      eixos: estado.eixos,
+      cancelado: () => cancelado,
+      progresso: (txt, frac) => mostrarCarregando(txt, frac, cancelar),
+      obterFoto: async (g) => {
+        const id = g.fotoCom || g.fotoSem;
+        if (!id) return null;
+        const f = await foto(id);
+        const url = await reduzir(f.url, 1280, 0.8);
+        return Uint8Array.from(atob(url.split(',')[1]), (c) => c.charCodeAt(0));
+      },
+    });
+    if (r) avisar(r.semFoto ? `KMZ gerado: ${r.comFoto} fotos; ${r.semFoto} não puderam ser baixadas e ficaram só com o ponto.` : `KMZ gerado com ${r.comFoto} fotos.`, !!r.semFoto);
+  } catch (e) {
+    if (!cancelado) avisar(e.message || 'Não foi possível gerar o KMZ.', true);
   } finally {
     esconderCarregando();
   }

@@ -41,12 +41,14 @@ export async function chamar(action, dados = {}, timeoutMs = 90000) {
 }
 
 const MENSAGENS = {
-  CODIGO_INVALIDO: 'Código não reconhecido. Confira o código na aba Config da planilha.',
+  CODIGO_INVALIDO: 'Código não reconhecido. Confira o código na aba Equipes da planilha.',
   ACAO_DESCONHECIDA: 'O script do Google ainda é a versão antiga, sem o portal. Atualize o Code.gs e publique uma nova versão.',
   FOTO_NAO_ENCONTRADA: 'Esta foto não está mais registrada na planilha.',
   SOMENTE_EQUIPE: 'Para carregar vídeos é preciso o código da equipe.',
   SESSAO_EXPIRADA: 'A sessão de envio expirou. Comece o envio de novo.',
   VIDEO_NAO_ENCONTRADO: 'Este vídeo não está mais registrado na planilha.',
+  EQUIPE_OBRIGATORIA: 'Escolha a equipe para enviar.',
+  RELATORIO_DE_OUTRA_EQUIPE: 'Este relatório é de outra equipe.',
 };
 
 // ---------------------------------------------------------------- IndexedDB (cache)

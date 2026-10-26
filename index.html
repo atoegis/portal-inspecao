@@ -10,7 +10,7 @@
 <link rel="icon" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="lib/leaflet/leaflet.css">
 <link rel="stylesheet" href="css/portal.css">
 </head>
@@ -46,6 +46,7 @@
     <div class="marca">
       <img src="icons/icon-192.png" alt="" width="30" height="30">
       <strong>Portal de Inspeção</strong>
+      <span class="equipe-selo" id="equipe-selo" hidden></span>
     </div>
     <nav class="abas" aria-label="Seções">
       <a href="#mapa" class="aba" data-aba="mapa">Mapa</a>
@@ -89,6 +90,11 @@
             <label><span>De</span><input type="date" id="f-de"></label>
             <label><span>Até</span><input type="date" id="f-ate"></label>
           </div>
+        </div>
+
+        <div class="grupo" id="grupo-equipe" hidden>
+          <label class="grupo-tit" for="f-equipe">Equipe</label>
+          <select id="f-equipe"></select>
         </div>
 
         <div class="grupo">
@@ -142,6 +148,7 @@
               <button data-exp="relatorio">Relatório fotográfico (PDF)</button>
               <button data-exp="csv">Planilha (CSV)</button>
               <button data-exp="kml">Google Earth (KML)</button>
+              <button data-exp="kmz">Google Earth com fotos (KMZ)</button>
             </div>
           </div>
         </div>
@@ -215,8 +222,13 @@
           <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
           <input id="r-texto" type="search" placeholder="Buscar objeto, inspetor, ID…" aria-label="Buscar relatório">
         </div>
+        <select id="r-equipe" aria-label="Equipe" hidden></select>
         <select id="r-tipo" aria-label="Tipo"></select>
         <select id="r-status" aria-label="Situação"></select>
+        <button class="btn btn-primario" id="r-importar">
+          <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="2"/><circle cx="9" cy="11" r="2"/><path d="m21 17-5-5-8 8"/><path d="M16 2v6M13 5h6"/></svg>
+          Importar fotos
+        </button>
       </div>
     </div>
     <div class="tabela-rolagem">
@@ -224,6 +236,7 @@
         <thead>
           <tr>
             <th data-ord="inicio" class="ord">Início</th>
+            <th data-ord="nomeEquipe" class="ord col-equipe">Equipe</th>
             <th data-ord="tipo" class="ord">Tipo</th>
             <th data-ord="objeto" class="ord">Objeto de avaliação</th>
             <th data-ord="inspetor" class="ord">Inspetor</th>
@@ -316,6 +329,7 @@
       <div id="up-detalhes" hidden>
         <dl class="campos up-resumo" id="up-resumo"></dl>
         <div class="up-grade">
+          <label class="largo" id="up-equipe-campo" hidden><span>Equipe</span><select id="up-equipe"></select></label>
           <label class="largo"><span>Descrição</span><textarea id="up-desc" rows="2" placeholder="O que o vídeo mostra"></textarea></label>
           <label><span>Relatório</span><select id="up-rel"></select></label>
           <label><span>Categoria</span><select id="up-cat"></select></label>
@@ -335,6 +349,118 @@
         <button type="submit" class="btn btn-primario" id="up-enviar" disabled>Carregar</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- ============================================================ importar fotos -->
+<div class="modal-fundo" id="dlg-importar" hidden>
+  <div class="modal modal-importar" role="dialog" aria-modal="true" aria-labelledby="im-titulo">
+    <div class="modal-topo">
+      <div>
+        <div class="detalhe-est" id="im-titulo">Importar fotos</div>
+        <div class="detalhe-sub">Fotos tiradas antes, de qualquer câmera ou celular</div>
+      </div>
+      <ol class="im-passos" id="im-passos" aria-label="Etapas">
+        <li data-p="1"><b>1</b><span>Fotos</span></li>
+        <li data-p="2"><b>2</b><span>Destino</span></li>
+        <li data-p="3"><b>3</b><span>Revisão</span></li>
+        <li data-p="4"><b>4</b><span>Envio</span></li>
+      </ol>
+      <button class="btn-ico" id="im-fechar" title="Fechar"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="im-corpo">
+      <!-- 1. fotos -->
+      <section data-passo="1">
+        <label class="up-zona" id="im-zona" for="im-arquivos">
+          <svg viewBox="0 0 24 24"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 21h14"/></svg>
+          <strong>Escolha ou arraste as fotos aqui</strong>
+          <span>JPEG, PNG ou WebP. Pode escolher várias de uma vez (Ctrl ou Shift).</span>
+          <input type="file" id="im-arquivos" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif" multiple>
+        </label>
+        <div class="im-aviso" id="im-aviso-arq" hidden></div>
+        <ul class="im-escolhidos" id="im-escolhidos"></ul>
+        <button type="button" class="btn-link" id="im-limpar" hidden>Tirar todas da lista</button>
+        <p class="ajuda im-explica">A coordenada é lida do GPS gravado no arquivo. Se a foto não tiver, o portal procura a coordenada escrita na própria foto (como a legenda do app ou de outros apps de câmera). Tudo pode ser conferido e corrigido antes do envio.</p>
+      </section>
+
+      <!-- 2. destino -->
+      <section data-passo="2" hidden>
+        <div class="up-grade" id="im-equipe-campo" hidden>
+          <label><span>Equipe <em>as fotos ficam na pasta e nos relatórios desta equipe</em></span><select id="im-equipe"></select></label>
+        </div>
+        <div class="im-modos" role="radiogroup" aria-label="Tipo de registro">
+          <label class="im-modo"><input type="radio" name="im-modo" value="individual"><strong>Fotos individuais</strong><span>Sem relatório. Ficam na pasta do mês de cada foto.</span></label>
+          <label class="im-modo"><input type="radio" name="im-modo" value="novo"><strong>Novo relatório de inspeção</strong><span>Cria um relatório (encerrado) com estas fotos.</span></label>
+          <label class="im-modo"><input type="radio" name="im-modo" value="existente" id="im-modo-existente"><strong>Relatório já existente</strong><span>Acrescenta as fotos a um relatório do portal.</span></label>
+        </div>
+        <div class="up-grade" id="im-campos-novo" hidden>
+          <label><span>Tipo de relatório</span><select id="im-tipo"></select></label>
+          <label><span>Objeto de avaliação</span><input id="im-objeto" placeholder="Ex.: Bueiro BSTC km 12"></label>
+        </div>
+        <div class="up-grade" id="im-campos-existente" hidden>
+          <label class="largo"><span>Relatório</span><select id="im-rel"></select></label>
+        </div>
+        <div id="im-campos-comuns" hidden>
+          <div class="up-grade">
+            <label><span>Quem fez as fotos</span><input id="im-insp" placeholder="Nome do inspetor" autocomplete="name"></label>
+            <label id="im-codigo-campo" hidden><span>Código da equipe</span><input id="im-codigo" inputmode="numeric" placeholder="O mesmo do app"></label>
+          </div>
+          <div class="up-grade im-geral">
+            <label class="largo"><span>O que as fotos mostram <em>vale para todas; dá para mudar foto a foto na revisão</em></span><textarea id="im-desc-geral" rows="2" placeholder="Ex.: Sarjeta de corte assoreada"></textarea></label>
+            <label><span>Categoria <em>para todas</em></span><select id="im-cat-geral"></select></label>
+          </div>
+          <div class="im-opcoes">
+            <label class="im-check"><input type="checkbox" id="im-legenda" checked> Escrever a legenda (data, coordenada e estaca) nas fotos que ainda não têm, como no app. A original também é guardada.</label>
+            <label class="im-check"><input type="checkbox" id="im-ocr" checked> Procurar a coordenada escrita na foto quando o arquivo não tiver GPS</label>
+          </div>
+        </div>
+        <div class="up-progresso" id="im-leitura" hidden>
+          <div class="barra"><span id="im-leitura-barra"></span></div>
+          <p class="ajuda" id="im-leitura-txt"></p>
+        </div>
+      </section>
+
+      <!-- 3. revisão -->
+      <section data-passo="3" hidden>
+        <p class="im-destino" id="im-destino"></p>
+        <div class="im-contagem" id="im-contagem"></div>
+        <details class="im-todas">
+          <summary>Aplicar a todas as fotos</summary>
+          <div class="im-todas-campos">
+            <select id="im-todas-cat" aria-label="Categoria para todas"></select>
+            <input id="im-todas-desc" placeholder="Descrição para todas" aria-label="Descrição para todas">
+            <label class="im-check"><input type="checkbox" id="im-todas-vazias" checked> Só onde estiver vazio</label>
+            <button type="button" class="btn btn-sec btn-peq" id="im-todas-aplicar">Aplicar</button>
+          </div>
+        </details>
+        <ol class="im-lista" id="im-lista"></ol>
+      </section>
+
+      <!-- 4. envio -->
+      <section data-passo="4" hidden>
+        <div class="up-progresso">
+          <div class="up-prog-topo"><strong id="im-env-pct">0 de 0</strong><span id="im-env-txt"></span></div>
+          <div class="barra"><span id="im-env-barra"></span></div>
+          <p class="ajuda">Mantenha esta página aberta até terminar.</p>
+        </div>
+        <div class="up-ok" id="im-env-fim" hidden>
+          <strong>Importação concluída</strong>
+          <span id="im-env-fim-txt"></span>
+          <button type="button" class="btn btn-sec btn-peq" id="im-ver-mapa" hidden>Ver o relatório no mapa</button>
+        </div>
+        <ol class="im-envio-lista" id="im-envio-lista"></ol>
+      </section>
+      <p class="erro" id="im-erro" role="alert" hidden></p>
+    </div>
+    <div class="im-rodape">
+      <span class="im-resumo" id="im-resumo"></span>
+      <button type="button" class="btn btn-sec" id="im-voltar" hidden>Voltar</button>
+      <button type="button" class="btn btn-primario" id="im-avancar" disabled>Continuar</button>
+    </div>
+    <div class="im-previa" id="im-previa" hidden title="Clique para fechar">
+      <img id="im-previa-img" alt="Prévia da foto">
+      <p id="im-previa-txt"></p>
+    </div>
   </div>
 </div>
 
