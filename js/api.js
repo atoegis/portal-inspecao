@@ -49,6 +49,7 @@ const MENSAGENS = {
   VIDEO_NAO_ENCONTRADO: 'Este vídeo não está mais registrado na planilha.',
   EQUIPE_OBRIGATORIA: 'Escolha a equipe para enviar.',
   RELATORIO_DE_OUTRA_EQUIPE: 'Este relatório é de outra equipe.',
+  REGISTRO_NAO_ENCONTRADO: 'Esta foto não foi encontrada na planilha (ou é de outra equipe).',
 };
 
 // ---------------------------------------------------------------- IndexedDB (cache)

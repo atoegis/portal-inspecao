@@ -352,6 +352,36 @@
   </div>
 </div>
 
+<!-- ============================================================ fotos do relatório -->
+<div class="modal-fundo" id="dlg-fotos" hidden>
+  <div class="modal modal-fotos" role="dialog" aria-modal="true" aria-labelledby="fr-titulo">
+    <div class="modal-topo">
+      <div>
+        <div class="detalhe-est" id="fr-titulo"></div>
+        <div class="detalhe-sub" id="fr-sub"></div>
+      </div>
+      <button class="btn-ico" id="fr-fechar" title="Fechar"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="fr-corpo">
+      <div class="up-grade" id="fr-codigo-campo" hidden>
+        <label><span>Código do app da equipe <em>necessário para editar; o código do portal só consulta</em></span><input id="fr-codigo" inputmode="numeric" placeholder="O mesmo do app"></label>
+      </div>
+      <p class="erro" id="fr-erro" role="alert" hidden></p>
+      <ol class="fr-lista" id="fr-lista"></ol>
+      <p class="ajuda fr-nota">As alterações valem para a planilha, o mapa, os filtros e os relatórios. A legenda já escrita na imagem não muda. Cada alteração fica registrada na coluna “Edições” da planilha.</p>
+    </div>
+    <div class="im-rodape">
+      <span class="im-resumo" id="fr-resumo"></span>
+      <button type="button" class="btn btn-sec" id="fr-cancelar">Fechar</button>
+      <button type="button" class="btn btn-primario" id="fr-salvar" disabled>Salvar alterações</button>
+    </div>
+    <div class="im-previa" id="fr-previa" hidden title="Clique para fechar">
+      <img id="fr-previa-img" alt="Foto">
+      <p id="fr-previa-txt"></p>
+    </div>
+  </div>
+</div>
+
 <!-- ============================================================ importar fotos -->
 <div class="modal-fundo" id="dlg-importar" hidden>
   <div class="modal modal-importar" role="dialog" aria-modal="true" aria-labelledby="im-titulo">
@@ -456,6 +486,17 @@
       <span class="im-resumo" id="im-resumo"></span>
       <button type="button" class="btn btn-sec" id="im-voltar" hidden>Voltar</button>
       <button type="button" class="btn btn-primario" id="im-avancar" disabled>Continuar</button>
+    </div>
+    <div class="im-marcar" id="im-marcar" hidden>
+      <p class="im-marcar-tit"><b>Marque onde está o texto da coordenada</b><span>Clique e arraste um retângulo em volta das linhas do texto.</span></p>
+      <div class="im-marcar-area" id="im-marcar-area">
+        <img id="im-marcar-img" alt="Foto para marcar a área do texto" draggable="false">
+        <div class="im-marcar-sel" id="im-marcar-sel" hidden></div>
+      </div>
+      <div class="im-marcar-acoes">
+        <button type="button" class="btn btn-sec" id="im-marcar-cancelar">Cancelar</button>
+        <button type="button" class="btn btn-primario" id="im-marcar-ler" disabled>Ler a área marcada</button>
+      </div>
     </div>
     <div class="im-previa" id="im-previa" hidden title="Clique para fechar">
       <img id="im-previa-img" alt="Prévia da foto">

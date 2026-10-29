@@ -23,6 +23,7 @@ export function limparOCR(t) {
     .replace(/(?<=[\d.,])[oO](?=\d)/g, '0')
     .replace(/(?<=[\d.,])[lI|](?=\d)/g, '1')
     .replace(/(\d)\s*[º˚]\s*/g, '$1°')
+    .replace(/(\d)[.,]{2,}(?=\d)/g, '$1.')
     .replace(/[ \t]+/g, ' ');
 }
 

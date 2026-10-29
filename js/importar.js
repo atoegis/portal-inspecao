@@ -5,7 +5,7 @@ import { chamar, cacheLer, cacheGravar, local } from './api.js';
 import { fmtNum, fmtData, esc } from './formatos.js';
 import { lerExif } from './exif.js';
 import { lerCoordenada, lerDataHora, lerEstacaTexto } from './coordenadas.js';
-import { lerTextoDaFoto } from './ocr.js';
+import { lerTextoDaFoto, analiseDetalhada } from './ocr.js';
 import { BaseEstacas } from './estacas.js';
 import { renderizar, canvasParaBlob, carregarFonteCarimbo } from './carimbo.js';
 
@@ -544,6 +544,23 @@ export function criarImportacao(ctx) {
   }
 
   function renderRevisao() {
+    renderContagem();
+    $('#im-todas-cat').innerHTML = opcoesCategoria('');
+    const modo = modoEscolhido();
+    const d = ctx.dados();
+    let destino = 'Fotos individuais';
+    if (modo === 'novo') destino = `Novo relatório: ${$('#im-tipo').value}${$('#im-objeto').value.trim() ? ` · ${$('#im-objeto').value.trim()}` : ''}`;
+    if (modo === 'existente') {
+      const r = d && d.relPorId.get($('#im-rel').value);
+      destino = `Relatório: ${r ? [r.tipo, r.objeto].filter(Boolean).join(' · ') : $('#im-rel').value}`;
+    }
+    const eqNome = d && d.master ? d.nomeEquipe.get($('#im-equipe').value) : '';
+    $('#im-destino').textContent = [eqNome, destino, $('#im-insp').value.trim()].filter(Boolean).join(' · ');
+    $('#im-lista').innerHTML = st.itens.map((it, idx) => cartao(it, idx)).join('');
+    atualizarRodape();
+  }
+
+  function renderContagem() {
     const lidas = st.itens.filter((i) => !i.falhaLeitura);
     const gps = lidas.filter((i) => i.origemPos === 'gps').length;
     const txt = lidas.filter((i) => i.origemPos === 'texto').length;
@@ -562,20 +579,10 @@ export function criarImportacao(ctx) {
       sem && `<span class="im-orig im-orig-falta">${sem} sem coordenada</span>`,
       rep && `<span class="im-orig im-orig-rep">${rep} possíve${rep === 1 ? 'l' : 'is'} repetida${rep === 1 ? '' : 's'}</span>`,
       falhas && `<span class="im-orig im-orig-falta">${falhas} não ${falhas === 1 ? 'abriu' : 'abriram'}</span>`,
-    ].filter(Boolean).join('') + (semOcr ? '<p class="im-alerta im-alerta-largo">O leitor de texto não pôde ser carregado (ele vem da internet na primeira vez). As fotos sem GPS ficaram sem coordenada: digite-a ou tente de novo com a internet funcionando.</p>' : '');
-    $('#im-todas-cat').innerHTML = opcoesCategoria('');
-    const modo = modoEscolhido();
-    const d = ctx.dados();
-    let destino = 'Fotos individuais';
-    if (modo === 'novo') destino = `Novo relatório: ${$('#im-tipo').value}${$('#im-objeto').value.trim() ? ` · ${$('#im-objeto').value.trim()}` : ''}`;
-    if (modo === 'existente') {
-      const r = d && d.relPorId.get($('#im-rel').value);
-      destino = `Relatório: ${r ? [r.tipo, r.objeto].filter(Boolean).join(' · ') : $('#im-rel').value}`;
-    }
-    const eqNome = d && d.master ? d.nomeEquipe.get($('#im-equipe').value) : '';
-    $('#im-destino').textContent = [eqNome, destino, $('#im-insp').value.trim()].filter(Boolean).join(' · ');
-    $('#im-lista').innerHTML = st.itens.map((it, idx) => cartao(it, idx)).join('');
-    atualizarRodape();
+    ].filter(Boolean).join('')
+      + (sem && !st.redetectando ? `<button type="button" class="btn btn-sec btn-peq im-redetectar-todas" data-redetectar-todas title="Análise mais demorada e detalhada, que tenta vários tratamentos da imagem">Repetir detecção nas ${sem === 1 ? 'sem coordenada' : `${sem} sem coordenada`}</button>` : '')
+      + (st.redetectando ? `<button type="button" class="btn btn-sec btn-peq im-redetectar-todas" data-parar-redeteccao>Parar (${esc(st.redetectando)})</button>` : '')
+      + (semOcr ? '<p class="im-alerta im-alerta-largo">O leitor de texto não pôde ser carregado (ele vem da internet na primeira vez). As fotos sem GPS ficaram sem coordenada: digite-a ou tente de novo com a internet funcionando.</p>' : '');
   }
 
   function cartao(it, idx) {
@@ -599,6 +606,13 @@ export function criarImportacao(ctx) {
           <label><span>Coordenada <em>lat, lon · GMS · UTM</em></span>
             <input type="text" data-campo="coord" value="${esc(coord)}" placeholder="Ex.: -14.0603, -49.2363 ou E/N UTM" spellcheck="false" autocomplete="off"></label>
           <div class="im-estaca largo">${linhaEstaca(it)}</div>
+          ${it.origemPos === 'gps' ? '' : `<div class="im-detectar largo">
+            ${it.analisando ? `<span class="im-analisando"><i></i>${esc(it.analisando)}</span>` : `
+            <button type="button" class="btn btn-sec btn-peq" data-redetectar title="Análise mais detalhada da foto inteira, com vários tratamentos da imagem">${it.pos ? 'Detectar de novo' : 'Repetir detecção'}</button>
+            <button type="button" class="btn btn-sec btn-peq" data-marcar title="Desenhe um retângulo em volta do texto da coordenada">Marcar onde está o texto</button>`}
+            ${it.redeteccaoMsg ? `<span class="im-detectar-msg">${esc(it.redeteccaoMsg)}</span>` : ''}
+            ${it.textoLido && it.textoLido.trim() ? `<details class="im-texto-lido"><summary>Texto lido na foto</summary><pre>${esc(it.textoLido.replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim())}</pre></details>` : ''}
+          </div>`}
           <label class="largo"><span>Descrição do local</span>
             <span class="im-desc-linha"><textarea rows="2" data-campo="descricao" placeholder="O que a foto mostra">${esc(it.descricao)}</textarea>
             ${idx > 0 ? '<button type="button" class="btn btn-sec btn-peq" data-repetir title="Repetir a descrição da foto anterior">Repetir anterior</button>' : ''}</span></label>
@@ -679,7 +693,171 @@ export function criarImportacao(ctx) {
       li.querySelector('[data-campo="descricao"]').value = it.descricao;
     } else if (ev.target.closest('[data-previa]')) {
       mostrarPrevia(it);
+    } else if (ev.target.closest('[data-redetectar]')) {
+      redetectar(it, null);
+    } else if (ev.target.closest('[data-marcar]')) {
+      abrirMarcacao(it);
     }
+  }
+
+  // -------------------------------------------------------------- segunda análise (mais detalhada)
+  function redesenharCartao(it) {
+    const li = $(`#im-lista li[data-uid="${it.uid}"]`);
+    if (li) atualizarCartao(li, it);
+  }
+
+  /** Análise detalhada da foto (ou só da região marcada). Atualiza coordenada, data e estaca se achar. */
+  async function redetectar(it, regiao, cancelado = () => false) {
+    if (it.analisando) return;
+    it.analisando = regiao ? 'Lendo a área marcada…' : 'Analisando a foto…';
+    it.redeteccaoMsg = '';
+    redesenharCartao(it);
+    let im;
+    try {
+      im = await abrirImagem(it.arquivo);
+      const r = await analiseDetalhada(im.fonte, im.w, im.h, {
+        regiao,
+        avaliar: distanciaAoTracado,
+        cancelado,
+        aoProgresso: (i, n) => {
+          it.analisando = `${regiao ? 'Lendo a área marcada' : 'Analisando a foto'}… ${Math.round((i / n) * 100)}%`;
+          const el = $(`#im-lista li[data-uid="${it.uid}"] .im-analisando`);
+          if (el) el.lastChild.textContent = it.analisando;
+        },
+      });
+      it.textoLido = [r.texto, it.textoLido].filter(Boolean).join('\n');
+      if (r.coord) {
+        it.pos = { lat: r.coord.lat, lon: r.coord.lon };
+        it.origemPos = 'texto';
+        it.formatoTexto = `${r.coord.formato}, análise detalhada${r.votos > 1 ? ` (${r.votos} leituras iguais)` : ' (uma leitura: confira)'}`;
+        it.precisao = null;
+        it.coordInvalida = false;
+        it.redeteccaoMsg = r.votos > 1 ? 'Coordenada encontrada.' : 'Coordenada encontrada em uma só leitura: confira.';
+      } else {
+        const est = lerEstacaTexto(r.texto);
+        const p = est && st.base ? st.base.porEstaca(est.m, est.eixo) : null;
+        if (p && (!it.pos || it.origemPos === 'estaca')) {
+          it.pos = { lat: p.lat, lon: p.lon };
+          it.origemPos = 'estaca';
+          it.formatoTexto = 'estaca escrita na foto';
+          it.redeteccaoMsg = 'Coordenada não encontrada; posição pela estaca escrita na foto.';
+        } else {
+          it.redeteccaoMsg = cancelado() ? 'Análise interrompida.' : regiao
+            ? 'Não foi possível ler uma coordenada nessa área. Tente marcar só as linhas do texto, um pouco mais largo.'
+            : 'Não foi possível ler a coordenada. Tente "Marcar onde está o texto" ou digite a coordenada.';
+        }
+      }
+      if (r.texto && (r.coord || lerDataHora(r.texto) || lerEstacaTexto(r.texto))) { it.jaTemLegenda = true; it.legenda = false; }
+      if (it.origemData === 'Data do arquivo') {
+        const d = lerDataHora(r.texto);
+        if (d && !isNaN(d)) { it.data = d; it.origemData = 'Texto na foto'; }
+      }
+      calcularEstaca(it);
+    } catch (e) {
+      it.redeteccaoMsg = `Não foi possível analisar: ${e.message}`;
+    } finally {
+      if (im) im.fechar();
+      it.analisando = '';
+      redesenharCartao(it);
+      renderContagem();
+      atualizarRodape();
+    }
+  }
+
+  async function redetectarTodas() {
+    if (st.redetectando) return;
+    const fila = st.itens.filter((i) => !i.falhaLeitura && !i.pos && !i.analisando);
+    if (!fila.length) return;
+    st.pararRedeteccao = false;
+    let n = 0;
+    try {
+      for (const it of fila) {
+        if (st.pararRedeteccao) break;
+        n++;
+        st.redetectando = `${n} de ${fila.length}`;
+        renderContagem();
+        $(`#im-lista li[data-uid="${it.uid}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        await redetectar(it, null, () => st.pararRedeteccao);
+      }
+    } finally {
+      st.redetectando = '';
+      renderContagem();
+      const achou = fila.filter((i) => i.pos).length;
+      ctx.avisar(`Detecção repetida em ${n} ${n === 1 ? 'foto' : 'fotos'}: ${achou} com coordenada.`);
+    }
+  }
+
+  // -------------------------------------------------------------- marcar a área do texto
+  let marcacao = null;
+  async function abrirMarcacao(it) {
+    const caixa = $('#im-marcar');
+    const img = $('#im-marcar-img');
+    marcacao = { it, ret: null };
+    $('#im-marcar-ler').disabled = true;
+    $('#im-marcar-sel').hidden = true;
+    caixa.hidden = false;
+    let im;
+    try {
+      im = await abrirImagem(it.arquivo);
+      const c = renderizar(im.fonte, im.w, im.h, null, { maxLado: 1600 });
+      img.src = c.toDataURL('image/jpeg', 0.85);
+    } catch (e) {
+      ctx.avisar(`Não foi possível abrir a foto: ${e.message}`, true);
+      fecharMarcacao();
+    } finally {
+      if (im) im.fechar();
+    }
+  }
+  function fecharMarcacao() {
+    $('#im-marcar').hidden = true;
+    $('#im-marcar-img').removeAttribute('src');
+    marcacao = null;
+  }
+  function ligarMarcacao() {
+    const area = $('#im-marcar-area');
+    const sel = $('#im-marcar-sel');
+    let ini = null;
+    const pos = (ev) => {
+      const r = $('#im-marcar-img').getBoundingClientRect();
+      return { x: Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width)), y: Math.min(1, Math.max(0, (ev.clientY - r.top) / r.height)), r };
+    };
+    const desenhar = (a, b) => {
+      const img = $('#im-marcar-img').getBoundingClientRect();
+      const base = area.getBoundingClientRect();
+      const x0 = Math.min(a.x, b.x); const y0 = Math.min(a.y, b.y);
+      const x1 = Math.max(a.x, b.x); const y1 = Math.max(a.y, b.y);
+      Object.assign(sel.style, {
+        left: `${img.left - base.left + x0 * img.width}px`, top: `${img.top - base.top + y0 * img.height}px`,
+        width: `${(x1 - x0) * img.width}px`, height: `${(y1 - y0) * img.height}px`,
+      });
+      sel.hidden = false;
+      return { x0, y0, x1, y1 };
+    };
+    area.addEventListener('pointerdown', (ev) => {
+      if (!marcacao || ev.target.closest('button')) return;
+      ev.preventDefault();
+      area.setPointerCapture(ev.pointerId);
+      ini = pos(ev);
+    });
+    area.addEventListener('pointermove', (ev) => { if (ini && marcacao) marcacao.ret = desenhar(ini, pos(ev)); });
+    area.addEventListener('pointerup', () => {
+      if (!ini || !marcacao) return;
+      ini = null;
+      const r = marcacao.ret;
+      const ok = r && (r.x1 - r.x0) > 0.03 && (r.y1 - r.y0) > 0.02;
+      $('#im-marcar-ler').disabled = !ok;
+      if (!ok) sel.hidden = true;
+    });
+    $('#im-marcar-cancelar').addEventListener('click', fecharMarcacao);
+    $('#im-marcar-ler').addEventListener('click', () => {
+      if (!marcacao || !marcacao.ret) return;
+      const { it, ret } = marcacao;
+      // folga em volta da marcação
+      const fx = (ret.x1 - ret.x0) * 0.04; const fy = (ret.y1 - ret.y0) * 0.08;
+      const regiao = { x0: Math.max(0, ret.x0 - fx), y0: Math.max(0, ret.y0 - fy), x1: Math.min(1, ret.x1 + fx), y1: Math.min(1, ret.y1 + fy) };
+      fecharMarcacao();
+      redetectar(it, regiao);
+    });
   }
 
   function aplicarATodas() {
@@ -962,6 +1140,11 @@ export function criarImportacao(ctx) {
   $('#im-lista').addEventListener('change', aoMudarCampo);
   $('#im-lista').addEventListener('click', aoClicarLista);
   $('#im-todas-aplicar').addEventListener('click', aplicarATodas);
+  $('#im-contagem').addEventListener('click', (ev) => {
+    if (ev.target.closest('[data-redetectar-todas]')) redetectarTodas();
+    if (ev.target.closest('[data-parar-redeteccao]')) { st.pararRedeteccao = true; ev.target.closest('button').disabled = true; }
+  });
+  ligarMarcacao();
   $('#im-previa').addEventListener('click', fecharPrevia);
   $('#im-ver-mapa').addEventListener('click', (ev) => {
     const id = ev.currentTarget.dataset.rel;
@@ -975,6 +1158,7 @@ export function criarImportacao(ctx) {
   document.addEventListener('keydown', (ev) => {
     if (ev.key !== 'Escape' || $('#dlg-importar').hidden) return;
     if (!$('#im-previa').hidden) { fecharPrevia(); return; }
+    if (!$('#im-marcar').hidden) { fecharMarcacao(); return; }
     fechar();
   });
 

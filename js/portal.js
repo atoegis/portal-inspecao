@@ -12,6 +12,7 @@ import { gerarRelatorioFotografico } from './impressao.js';
 import { exportarCSV, exportarKML, exportarKMZ } from './exportar.js';
 import { criarVideos } from './videos.js';
 import { criarImportacao } from './importar.js';
+import { criarFotosRelatorio } from './fotosRelatorio.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -42,6 +43,7 @@ let filtros = filtrosVazios();
 let mapa = null;
 let regua = null;
 let videos = null;
+let fotosRel = null;
 
 // ================================================================ início
 iniciar();
@@ -294,6 +296,19 @@ function montarInterface() {
       recalcular({ enquadrar: true });
     },
   });
+  fotosRel = criarFotosRelatorio({
+    dados: () => estado.dados,
+    avisar,
+    atualizar: () => atualizar(true),
+    verNoMapa: (id, relId) => {
+      filtros = filtrosVazios();
+      filtros.relatorio = relId;
+      aplicarFiltrosNaTela();
+      irPara('mapa');
+      recalcular({ enquadrar: false });
+      selecionar(id, { centralizar: true });
+    },
+  });
   mapa = criarMapa($('#mapa'), {
     aoSelecionar: (id) => selecionar(id, { centralizar: false }),
   });
@@ -473,6 +488,8 @@ function montarInterface() {
       aplicarFiltrosNaTela();
       irPara('mapa');
       recalcular({ enquadrar: true });
+    } else if (b.dataset.acao === 'fotos') {
+      fotosRel.abrir(rel.id);
     } else if (b.dataset.acao === 'pdf') {
       exportar('relatorio', rel.regs, null, rel);
     }
@@ -1017,6 +1034,7 @@ function renderRelatorios() {
     <td class="num">${r.nfora ? `<span class="tag-fora">${fmtNum(r.nfora)}</span>` : '<span class="cinza">0</span>'}</td>
     <td><span class="status status-${normalizar(r.status) || 'nd'}">${esc(r.status || '—')}</span></td>
     <td class="acoes nowrap">
+      <button class="btn btn-sec btn-peq" data-acao="fotos" ${r.nfotos ? '' : 'disabled'}>Fotos</button>
       <button class="btn btn-sec btn-peq" data-acao="mapa" ${r.nfotos ? '' : 'disabled'}>Ver no mapa</button>
       <button class="btn btn-sec btn-peq" data-acao="pdf" ${r.nfotos ? '' : 'disabled'}>Relatório PDF</button>
       ${r.pasta ? `<a class="btn btn-sec btn-peq" href="${esc(r.pasta)}" target="_blank" rel="noopener">Pasta</a>` : ''}
